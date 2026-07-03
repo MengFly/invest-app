@@ -35,7 +35,7 @@ export function FundInfoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-xl p-6 gap-0 max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-md rounded-xl p-6 gap-0 max-h-[80vh] flex flex-col">
         <div className="mb-5">
           <DialogTitle className="text-left text-lg font-semibold tracking-tight text-[#1A1D26]">
             基金信息
@@ -46,7 +46,7 @@ export function FundInfoDialog({
           </DialogDescription>
         </div>
 
-        <ScrollArea className="flex-1 pr-1">
+        <ScrollArea className="flex-1 pr-1 pb-4">
           {basicInfo ? (
             <>
               {rows.map((row, i) => (
@@ -74,7 +74,7 @@ export function FundInfoDialog({
                 </div>
               ))}
 
-              {basicInfo.managementFees.length > 0 && (
+              {basicInfo.managementFees?.length > 0 && (
                 <div className="mt-5">
                   <h4
                     className="text-sm font-semibold mb-1"
@@ -109,7 +109,7 @@ export function FundInfoDialog({
                 </div>
               )}
 
-              {basicInfo.buyRules.length > 0 && (
+              {basicInfo.buyRules?.length > 0 && (
                 <div className="mt-5">
                   <h4
                     className="text-sm font-semibold mb-1"
@@ -146,7 +146,7 @@ export function FundInfoDialog({
                 </div>
               )}
 
-              {basicInfo.sellRules.length > 0 && (
+              {basicInfo.sellRules?.length > 0 && (
                 <div className="mt-5">
                   <h4
                     className="text-sm font-semibold mb-1"

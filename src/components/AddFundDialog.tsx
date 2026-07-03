@@ -87,7 +87,7 @@ export function AddFundDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm rounded-xl p-6 gap-0 max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-md rounded-xl p-6 gap-0 max-h-[90vh] flex flex-col">
         <DialogTitle className="text-left text-lg font-semibold tracking-tight text-[#1A1D26] mb-4">
           添加基金
         </DialogTitle>
