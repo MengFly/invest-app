@@ -88,11 +88,6 @@ export function RightPanel({ code }: RightPanelProps) {
     { key: 'all', label: '全部' },
   ];
 
-  const latestNav = useMemo(() => {
-    if (netWorths && netWorths.length > 0) return netWorths[netWorths.length - 1].netWorth;
-    return summary?.latestNav ?? 0;
-  }, [netWorths, summary]);
-
   if (!code) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -364,7 +359,8 @@ export function RightPanel({ code }: RightPanelProps) {
         onOpenChange={setBuyOpen}
         fundCode={code}
         fundName={fundName}
-        latestNav={latestNav}
+        netWorths={netWorths ?? []}
+        basicInfo={basicInfo}
         onSuccess={() => {}}
       />
       <SellDialog
@@ -373,6 +369,9 @@ export function RightPanel({ code }: RightPanelProps) {
         fundCode={code}
         fundName={fundName}
         summary={summary}
+        netWorths={netWorths ?? []}
+        basicInfo={basicInfo}
+        transactions={transactions ?? []}
         onSuccess={() => {}}
       />
       <FundInfoDialog

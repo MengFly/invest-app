@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Calendar } from 'lucide-react'
 import {
   Dialog,
@@ -11,7 +11,8 @@ import { colors } from '@/theme'
 import { formatMoney, formatPercent } from '@/utils/format'
 import { addTransaction } from '@/services/transaction'
 import { getHoldings } from '@/services/portfolio'
-import type { HoldingSummary } from '@/types'
+import { findNavByDate, getEarliestBuyDate, calcHoldDays, calcSellFeeRate } from '@/utils/navUtils'
+import type { HoldingSummary, NetWorthRecord, FundBasicInfo, Transaction } from '@/types'
 
 interface SellDialogProps {
   open: boolean
@@ -19,6 +20,9 @@ interface SellDialogProps {
   fundCode: string
   fundName: string
   summary: HoldingSummary | null
+  netWorths: NetWorthRecord[]
+  basicInfo: FundBasicInfo | null
+  transactions: Transaction[]
   onSuccess?: () => void
 }
 
@@ -28,28 +32,49 @@ export function SellDialog({
   fundCode,
   fundName,
   summary,
+  netWorths,
+  basicInfo,
+  transactions,
   onSuccess,
 }: SellDialogProps) {
   const [shares, setShares] = useState('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
 
   const holdShares = summary?.holdShares ?? 0
   const holdAmount = summary?.holdAmount ?? 0
   const totalProfit = summary?.totalProfit ?? 0
   const totalProfitRate = summary?.totalProfitRate ?? 0
-  const latestNav = summary?.latestNav ?? 0
+
+  // 按选定日期查找当日净值
+  const navRecord = findNavByDate(netWorths, selectedDate)
+  const dayNav = navRecord?.netWorth ?? 0
+
+  // 计算持有天数（首笔买入日到选定卖出日）
+  const earliestBuyDate = useMemo(
+    () => getEarliestBuyDate(transactions, fundCode),
+    [transactions, fundCode]
+  )
+  const holdDays = (earliestBuyDate && !isNaN(new Date(selectedDate).getTime()))
+    ? calcHoldDays(earliestBuyDate, selectedDate)
+    : 0
+
+  // 卖出费率
+  const sellFeeRate = calcSellFeeRate(basicInfo, holdDays)
 
   const numShares = parseFloat(shares.replace(/,/g, '')) || 0
-  const estAmount = numShares > 0 && latestNav > 0 ? numShares * latestNav : 0
-  const fee = estAmount > 0 ? estAmount * 0.001 : 0
+  const estAmount = numShares > 0 && dayNav > 0 ? numShares * dayNav : 0
+  const fee = estAmount * sellFeeRate
   const actual = estAmount - fee
 
   const costNav = holdShares > 0 ? (summary?.totalInvested ?? 0) / holdShares : 0
-  const estProfit = numShares > 0 && latestNav > 0 ? (latestNav - costNav) * numShares : 0
+  const estProfit = numShares > 0 && dayNav > 0 ? (dayNav - costNav) * numShares : 0
 
   const overSell = numShares > holdShares
-  const canSubmit = numShares > 0 && !overSell && latestNav > 0 && holdShares > 0 && !submitting
+  const canSubmit = numShares > 0 && !overSell && dayNav > 0 && holdShares > 0 && !submitting && !!navRecord
 
   const percentages = [
     { label: '10%', ratio: 0.1 },
@@ -69,13 +94,13 @@ export function SellDialog({
     setShares((holdShares * ratio).toFixed(2))
   }
 
-  const todayStr = new Date().toISOString().slice(0, 10)
   const profitColor = totalProfit >= 0 ? colors.profit : colors.loss
 
   const resetForm = () => {
     setShares('')
     setNote('')
     setActivePct(0)
+    setSelectedDate(new Date().toISOString().slice(0, 10))
     setSubmitting(false)
   }
 
@@ -88,8 +113,12 @@ export function SellDialog({
       alert(`赎回份额不能超过持有份额 ${holdShares.toFixed(2)} 份`)
       return
     }
-    if (latestNav <= 0) {
-      alert('最新净值数据未加载，请稍后重试')
+    if (!navRecord) {
+      alert(`所选日期 ${selectedDate} 非交易日，请选择有净值数据的日期`)
+      return
+    }
+    if (dayNav <= 0) {
+      alert('当日净值数据未加载，请稍后重试')
       return
     }
     if (holdShares <= 0) {
@@ -106,7 +135,7 @@ export function SellDialog({
       await addTransaction({
         fundCode,
         type: 'sell',
-        date: todayStr,
+        date: selectedDate,
         amount: actual,
         shares: numShares,
         fee,
@@ -203,16 +232,23 @@ export function SellDialog({
             }}
           >
             <Calendar size={16} color={colors.textTertiary} />
-            <span
-              className="text-sm font-medium ml-2"
+            <input
+              type="date"
+              value={selectedDate}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="flex-1 bg-transparent text-sm font-medium outline-none"
               style={{
                 color: colors.textPrimary,
                 fontFamily: 'ui-monospace, monospace',
               }}
-            >
-              {todayStr}
-            </span>
+            />
           </div>
+          {!navRecord && selectedDate && (
+            <div className="text-[11px] mt-1.5" style={{ color: colors.loss }}>
+              该日非交易日，无净值数据
+            </div>
+          )}
         </div>
 
         <div className="mb-4">
@@ -319,6 +355,23 @@ export function SellDialog({
             style={{ borderTopWidth: 1, borderTopColor: 'rgba(197,61,67,0.18)' }}
           >
             <span className="text-sm" style={{ color: colors.textSecondary }}>
+              当日净值
+            </span>
+            <span
+              className="text-sm font-semibold"
+              style={{
+                color: colors.textPrimary,
+                fontFamily: 'ui-monospace, monospace',
+              }}
+            >
+              {dayNav > 0 ? dayNav.toFixed(4) : '--'}
+            </span>
+          </div>
+          <div
+            className="flex justify-between items-center py-1.5"
+            style={{ borderTopWidth: 1, borderTopColor: 'rgba(197,61,67,0.18)' }}
+          >
+            <span className="text-sm" style={{ color: colors.textSecondary }}>
               预估金额
             </span>
             <span
@@ -357,7 +410,7 @@ export function SellDialog({
                 手续费
               </span>
               <span className="text-[11px]" style={{ color: colors.textTertiary }}>
-                (0.10%, {'>'}7天免手续费)
+                ({(sellFeeRate * 100).toFixed(2)}%, 持有{holdDays}天)
               </span>
             </div>
             <span

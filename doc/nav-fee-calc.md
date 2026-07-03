@@ -84,3 +84,33 @@
          ↓
 任务 7 (构建验证)
 ```
+
+## Complements
+
+### 1. navUtils 工具函数
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/utils/navUtils.ts` — 新增文件，包含 `findNavByDate()` 按日净值查找、`getEarliestBuyDate()` 最早买入日期查找、`calcHoldDays()` 持有天数计算、`calcBuyFeeRate()` 按金额匹配买入费率、`calcSellFeeRate()` 按持有天数匹配卖出费率
+- **审查结果**：审查通过
+
+### 2. BuyDialog 修复
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/BuyDialog.tsx` — 新增 `netWorths` 和 `basicInfo` prop；日期选择后调用 `findNavByDate` 查找当日净值显示并计算份额；选择非交易日时显示红色提示且禁止提交；手续费改为 `calcBuyFeeRate` 计算结果并显示真实费率
+- **审查结果**：审查通过
+
+### 3. SellDialog 修复
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/SellDialog.tsx` — 新增 `netWorths`、`basicInfo`、`transactions` prop；日期选择后查找当日净值；计算持有天数（首笔买入到卖出日）并匹配卖出费率；非交易日提示；手续费信息显示持有天数和真实费率
+- **审查结果**：审查通过
+
+### 4. RightPanel 传递新 props
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/RightPanel.tsx` — 移除不再使用的 `latestNav` 变量；BuyDialog 传入 `netWorths`、`basicInfo`；SellDialog 传入 `netWorths`、`basicInfo`、`transactions`
+- **审查结果**：审查通过
+
+### 5. 构建验证
+- **状态**：✅ 已完成
+- **结果**：`npx tsc --noEmit` 零错误 + `npm run build` 成功
