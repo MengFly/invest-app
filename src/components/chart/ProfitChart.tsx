@@ -26,6 +26,15 @@ export function ProfitChart({
   // 缩放状态
   const [zoomRange, setZoomRange] = useState<[number, number] | null>(null);
 
+  // 拖动平移状态
+  const isPanningRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartZoomRef = useRef<[number, number] | null>(null);
+
+  // 悬停状态
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+
   useLayoutEffect(() => {
     if (!containerRef.current) return;
     const resize = new ResizeObserver((entries) => {
@@ -141,6 +150,60 @@ export function ProfitChart({
 
   const isZoomed = zoomRange !== null;
 
+  // ===== 拖动平移 =====
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isZoomed) return;
+    isPanningRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartZoomRef.current = [...zoomRange!] as [number, number];
+  }, [isZoomed, zoomRange]);
+
+  const handleMouseMoveProfit = useCallback((e: React.MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    if (isPanningRef.current) {
+      const rect = svg.getBoundingClientRect();
+      const totalLen = allPoints.length;
+      const currentLen = (zoomRange ? zoomRange[1] - zoomRange[0] : totalLen - 1) + 1;
+      const chartW = width - 40 - 10;
+      const pixelsPerIndex = chartW / currentLen;
+      const dx = e.clientX - dragStartXRef.current;
+      const indexOffset = Math.round(-dx / pixelsPerIndex);
+      if (indexOffset === 0) return;
+      const start = dragStartZoomRef.current![0] + indexOffset;
+      const end = dragStartZoomRef.current![1] + indexOffset;
+      let clampedStart = start;
+      let clampedEnd = end;
+      if (start < 0) {
+        clampedStart = 0;
+        clampedEnd = currentLen - 1;
+      } else if (end >= totalLen) {
+        clampedStart = totalLen - currentLen;
+        clampedEnd = totalLen - 1;
+      }
+      setZoomRange([clampedStart, clampedEnd]);
+      dragStartXRef.current = e.clientX;
+      dragStartZoomRef.current = [clampedStart, clampedEnd];
+      return;
+    }
+
+    // 悬停检测
+    if (points.length > 0) {
+      const rect = svg.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const pixelsPerPoint = chartW / points.length;
+      const idx = Math.round((mouseX - padLeft) / pixelsPerPoint);
+      const clamped = Math.max(0, Math.min(points.length - 1, idx));
+      setHoveredIndex(clamped);
+      setMousePos({ x: e.clientX, y: e.clientY });
+    }
+  }, [zoomRange, allPoints.length, width, points, padLeft, chartW]);
+
+  const handleMouseUp = useCallback(() => {
+    isPanningRef.current = false;
+  }, []);
+
   return (
     <div ref={containerRef} className="w-full relative">
       {isZoomed && (
@@ -160,7 +223,11 @@ export function ProfitChart({
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
         onWheel={handleWheel}
-        style={{ cursor: isZoomed ? 'zoom-in' : 'default' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMoveProfit}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => { isPanningRef.current = false; setHoveredIndex(null); setMousePos(null); }}
+        style={{ cursor: isZoomed ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
       >
         <defs>
           <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
@@ -190,7 +257,48 @@ export function ProfitChart({
         </text>
         <circle cx={endX} cy={endY} r={5} fill={colors.primary} opacity={0.2} />
         <circle cx={endX} cy={endY} r={3} fill={colors.primary} />
+
+        {/* 悬停十字线 */}
+        {hoveredIndex !== null && points[hoveredIndex] !== undefined && (
+          <line
+            x1={toX(hoveredIndex)} y1={padTop}
+            x2={toX(hoveredIndex)} y2={padTop + chartH}
+            stroke={colors.textTertiary} strokeWidth={1} strokeDasharray="3,2"
+          />
+        )}
       </svg>
+
+      {/* 悬停信息浮窗 */}
+      {hoveredIndex !== null && mousePos && points[hoveredIndex] !== undefined && (() => {
+        const range = dataRange.max - dataRange.min || 1;
+        const actualProfit = dataRange.min + range * (140 - points[hoveredIndex]) / 120;
+        const profitColor = actualProfit >= 0 ? colors.profit : colors.loss;
+
+        const dateLabel = xLabels[hoveredIndex] || '';
+        const tooltipW = 180;
+        const tooltipH = 75;
+        let left = mousePos.x + 16;
+        let top = mousePos.y - 16 - tooltipH;
+        if (left + tooltipW > window.innerWidth - 10) left = mousePos.x - 16 - tooltipW;
+        if (top < 10) top = mousePos.y + 16;
+
+        return (
+          <div
+            className="fixed z-50 rounded-xl border shadow-sm px-3 py-2 text-[11px] leading-relaxed pointer-events-none"
+            style={{ left, top, backgroundColor: colors.bgCard, borderColor: colors.borderLight, minWidth: tooltipW }}
+          >
+            <div className="font-semibold mb-1" style={{ color: colors.textPrimary, fontFamily: 'Geist Mono, monospace' }}>
+              {dateLabel}
+            </div>
+            <div className="flex justify-between gap-4">
+              <span style={{ color: colors.textTertiary }}>累计收益</span>
+              <span style={{ color: profitColor, fontFamily: 'Geist Mono, monospace' }}>
+                {actualProfit >= 0 ? '+' : ''}¥{actualProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

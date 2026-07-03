@@ -50,6 +50,51 @@ export function NavChart({
   // 缩放状态: [startIndex, endIndex] 或 null 表示显示全部
   const [zoomRange, setZoomRange] = useState<[number, number] | null>(null);
 
+  // 拖动平移状态
+  const isPanningRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartZoomRef = useRef<[number, number] | null>(null);
+
+  // 悬停状态
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
+
+  // ===== 每日收益数据（用于悬停浮窗） =====
+  const dailyProfitData = useMemo(() => {
+    if (!netWorths || netWorths.length === 0) return null;
+    const sortedTxns = [...(transactions ?? [])].sort((a, b) => a.date.localeCompare(b.date));
+    let cumShares = 0;
+    let cumInvested = 0;
+    let totalBuyCost = 0;
+    let totalBuyShares = 0;
+    let txnIdx = 0;
+    const result: { date: string; nav: number; change: number; cumProfit: number; holdProfit: number }[] = [];
+    for (const rec of netWorths) {
+      while (txnIdx < sortedTxns.length && sortedTxns[txnIdx].date <= rec.date) {
+        const t = sortedTxns[txnIdx];
+        if (t.type === 'buy') {
+          cumShares += t.shares;
+          cumInvested += t.amount;
+          totalBuyCost += t.amount;
+          totalBuyShares += t.shares;
+        } else {
+          cumShares -= t.shares;
+          cumInvested -= t.amount;
+        }
+        txnIdx++;
+      }
+      const avgCost = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0;
+      result.push({
+        date: rec.date,
+        nav: rec.netWorth,
+        change: rec.netWorthChange / 100,
+        cumProfit: cumShares * rec.netWorth - cumInvested,
+        holdProfit: cumShares * rec.netWorth - cumShares * avgCost,
+      });
+    }
+    return result;
+  }, [netWorths, transactions]);
+
   useLayoutEffect(() => {
     if (!containerRef.current) return;
     const resize = new ResizeObserver((entries) => {
@@ -271,6 +316,66 @@ export function NavChart({
     setZoomRange(null);
   }, []);
 
+  // ===== 拖动平移处理 =====
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!isZoomedRef()) return;
+    isPanningRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartZoomRef.current = [...zoomRange!] as [number, number];
+  }, [zoomRange]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+
+    if (isPanningRef.current) {
+      const dx = e.clientX - dragStartXRef.current;
+      const currentLen = (zoomRange ? zoomRange[1] - zoomRange[0] : totalLen - 1) + 1;
+      const pixelsPerIndex = chartW / currentLen;
+      const indexOffset = Math.round(-dx / pixelsPerIndex);
+      if (indexOffset === 0) return;
+      const start = dragStartZoomRef.current![0] + indexOffset;
+      const end = dragStartZoomRef.current![1] + indexOffset;
+      let clampedStart = start;
+      let clampedEnd = end;
+      if (start < 0) {
+        clampedStart = 0;
+        clampedEnd = currentLen - 1;
+      } else if (end >= totalLen) {
+        clampedStart = totalLen - currentLen;
+        clampedEnd = totalLen - 1;
+      }
+      setZoomRange([clampedStart, clampedEnd]);
+      dragStartXRef.current = e.clientX;
+      dragStartZoomRef.current = [clampedStart, clampedEnd];
+      return;
+    }
+
+    // 悬停检测
+    if (activeNetWorths && activeNetWorths.length > 0) {
+      const chartMouseX = mouseX - padLeft;
+      const pixelsPerPoint = chartW / activeNetWorths.length;
+      const idx = Math.round(chartMouseX / pixelsPerPoint);
+      const clamped = Math.max(0, Math.min(activeNetWorths.length - 1, idx));
+      setHoveredIndex(clamped);
+      setMousePos({ x: e.clientX, y: e.clientY });
+    }
+  }, [zoomRange, totalLen, chartW, activeNetWorths, padLeft]);
+
+  const handleMouseLeaveSvg = useCallback(() => {
+    isPanningRef.current = false;
+    setHoveredIndex(null);
+    setMousePos(null);
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isPanningRef.current = false;
+  }, []);
+
+  const isZoomedRef = useCallback(() => zoomRange !== null, [zoomRange]);
+
   return (
     <div ref={containerRef} className="w-full relative">
       {isZoomed && (
@@ -290,7 +395,11 @@ export function NavChart({
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="xMidYMid meet"
         onWheel={handleWheel}
-        style={{ cursor: isZoomed ? 'zoom-in' : 'default' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseLeaveSvg}
+        style={{ cursor: isZoomed ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
       >
         <defs>
           <linearGradient id="navGrad" x1="0" y1="0" x2="0" y2="1">
@@ -369,7 +478,70 @@ export function NavChart({
             <circle cx={endX} cy={endY} r={3} fill={colors.primary} />
           </>
         )}
+
+        {/* 悬停十字线 */}
+        {hoveredIndex !== null && activeNetWorths && activeNetWorths[hoveredIndex] && (
+          <line
+            x1={toX(hoveredIndex)}
+            y1={padTop}
+            x2={toX(hoveredIndex)}
+            y2={padTop + chartH}
+            stroke={colors.textTertiary}
+            strokeWidth={1}
+            strokeDasharray="3,2"
+          />
+        )}
       </svg>
+
+      {/* 悬停信息浮窗 */}
+      {hoveredIndex !== null && mousePos && activeNetWorths && activeNetWorths[hoveredIndex] && dailyProfitData && (() => {
+        const baseIdx = zoomRange ? zoomRange[0] : 0;
+        const dataIdx = baseIdx + hoveredIndex;
+        const info = dailyProfitData[dataIdx];
+        if (!info) return null;
+
+        const profitColor = info.cumProfit >= 0 ? colors.profit : colors.loss;
+        const holdColor = info.holdProfit >= 0 ? colors.profit : colors.loss;
+        const changeColor = info.change >= 0 ? colors.profit : colors.loss;
+
+        const tooltipW = 190;
+        const tooltipH = 130;
+        let left = mousePos.x + 16;
+        let top = mousePos.y - 16 - tooltipH;
+        if (left + tooltipW > window.innerWidth - 10) left = mousePos.x - 16 - tooltipW;
+        if (top < 10) top = mousePos.y + 16;
+
+        return (
+          <div
+            className="fixed z-50 rounded-xl border shadow-sm px-3 py-2 text-[11px] leading-relaxed pointer-events-none"
+            style={{ left, top, backgroundColor: colors.bgCard, borderColor: colors.borderLight, minWidth: tooltipW }}
+          >
+            <div className="font-semibold mb-1" style={{ color: colors.textPrimary, fontFamily: 'Geist Mono, monospace' }}>
+              {info.date}
+            </div>
+            <div className="flex justify-between gap-4">
+              <span style={{ color: colors.textTertiary }}>净值</span>
+              <span style={{ color: colors.textPrimary, fontFamily: 'Geist Mono, monospace' }}>{info.nav.toFixed(4)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span style={{ color: colors.textTertiary }}>涨跌</span>
+              <span style={{ color: changeColor, fontFamily: 'Geist Mono, monospace' }}>{(info.change * 100).toFixed(2)}%</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span style={{ color: colors.textTertiary }}>累计收益</span>
+              <span style={{ color: profitColor, fontFamily: 'Geist Mono, monospace' }}>
+                {info.cumProfit >= 0 ? '+' : ''}¥{info.cumProfit.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span style={{ color: colors.textTertiary }}>持有收益</span>
+              <span style={{ color: holdColor, fontFamily: 'Geist Mono, monospace' }}>
+                {info.holdProfit >= 0 ? '+' : ''}¥{info.holdProfit.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

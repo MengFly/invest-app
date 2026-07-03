@@ -20,6 +20,13 @@ export function HeaderStats({ summaries }: HeaderStatsProps) {
   const totalInvested = summaryList.reduce((s, x) => s + x.totalInvested, 0);
   const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
 
+  const totalHoldingProfit = summaryList.reduce((s, x) => s + x.holdingProfit, 0);
+  const totalHoldingCost = summaryList.reduce((s, x) => {
+    const cost = x.holdAmount - x.holdingProfit;
+    return s + (cost > 0 ? cost : 0);
+  }, 0);
+  const totalHoldingProfitRate = totalHoldingCost > 0 ? totalHoldingProfit / totalHoldingCost : 0;
+
   const avgHoldDays = summaryList.length > 0
     ? summaryList.reduce((s, x) => s + x.holdDays, 0) / summaryList.length
     : 0;
@@ -78,6 +85,17 @@ export function HeaderStats({ summaries }: HeaderStatsProps) {
             }
             valueColor={profitColor}
             badge={formatPercent(totalProfitRate)}
+          />
+
+          <MetricBlock
+            label="持仓收益"
+            value={
+              totalHoldingProfit >= 0
+                ? `+¥${totalHoldingProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `-¥${Math.abs(totalHoldingProfit).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            }
+            valueColor={totalHoldingProfit >= 0 ? colors.profit : colors.loss}
+            badge={formatPercent(totalHoldingProfitRate)}
           />
 
           <MetricBlock

@@ -10,10 +10,12 @@ import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
 import { BuyDialog } from '@/components/BuyDialog';
 import { SellDialog } from '@/components/SellDialog';
+import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { FundInfoDialog } from '@/components/FundInfoDialog';
 import { calcDailyProfits } from '@/utils/profitChartCalc';
 import { Info } from 'lucide-react';
 import type { DailyProfitResult } from '@/utils/profitChartCalc';
+import type { Transaction } from '@/types';
 
 type RangeKey = '6m' | '1y' | '3y' | 'all';
 
@@ -80,6 +82,7 @@ export function RightPanel({ code }: RightPanelProps) {
   const [buyOpen, setBuyOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
 
   // 净值走势曲线设置
   const [navSettingsOpen, setNavSettingsOpen] = useState(false);
@@ -440,7 +443,8 @@ export function RightPanel({ code }: RightPanelProps) {
                       return (
                         <div
                           key={tx.id}
-                          className="flex items-center px-4 py-2.5 transition-colors hover:bg-gray-50"
+                          className="flex items-center px-4 py-2.5 transition-colors hover:bg-gray-50 cursor-pointer"
+                          onClick={() => setEditTx(tx)}
                           style={
                             i < sortedTransactions.length - 1
                               ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
@@ -506,6 +510,15 @@ export function RightPanel({ code }: RightPanelProps) {
         onOpenChange={setInfoOpen}
         basicInfo={basicInfo}
       />
+      {editTx && (
+        <EditTransactionDialog
+          open={!!editTx}
+          onOpenChange={(o) => { if (!o) setEditTx(null); }}
+          transaction={editTx}
+          netWorths={netWorths ?? []}
+          onSuccess={handleTransactionSuccess}
+        />
+      )}
     </div>
   );
 }

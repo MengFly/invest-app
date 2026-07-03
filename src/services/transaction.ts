@@ -62,6 +62,24 @@ export async function removeTransaction(id: string): Promise<void> {
 }
 
 /**
+ * 更新单条交易记录
+ */
+export async function updateTransaction(
+  id: string,
+  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note'>>
+): Promise<void> {
+  const all = await getTransactionsRaw();
+  const idx = all.findIndex((t) => t.id === id);
+  if (idx === -1) throw new Error('交易记录不存在');
+  all[idx] = { ...all[idx], ...updates };
+  try {
+    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(all));
+  } catch {
+    throw new Error('保存交易记录失败');
+  }
+}
+
+/**
  * 按基金删除全部交易记录 (删除持仓时级联调用)
  */
 export async function removeByFund(fundCode: string): Promise<void> {
