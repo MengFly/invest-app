@@ -1,0 +1,35 @@
+export const colors = {
+  primary: '#C53D43',
+  primaryLight: '#FDF0F0',
+  primaryDark: '#A32F35',
+
+  secondary: '#3B82F6',
+  secondaryLight: '#EFF6FF',
+  secondaryDark: '#2563EB',
+
+  bg: '#F6F7FA',
+  bgCard: '#FFFFFF',
+  bgElevated: '#FFFFFF',
+  bgInput: '#F0F1F5',
+  textPrimary: '#1A1D26',
+  textSecondary: '#6B7280',
+  textTertiary: '#9CA3AF',
+  border: '#E5E7EB',
+  borderLight: '#F0F1F5',
+
+  profit: '#E54D4E',
+  profitBg: '#FEF2F2',
+  loss: '#2EAE6D',
+  lossBg: '#E8F7F0',
+  flat: '#6B7280',
+  flatBg: '#F3F4F6',
+
+  success: '#C53D43',
+  successBg: '#E8F7F0',
+  warning: '#F59E0B',
+  warningBg: '#FFFBEB',
+  error: '#EF4444',
+  errorBg: '#FEF2F2',
+  info: '#3B82F6',
+  infoBg: '#EFF6FF',
+} as const;
