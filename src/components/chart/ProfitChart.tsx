@@ -1,6 +1,5 @@
-import React, { useRef, useState, useLayoutEffect } from 'react';
+import React, { useRef, useState, useLayoutEffect, useMemo, useCallback } from 'react';
 import { colors } from '@/theme';
-import type { ChartCoords } from '@/types';
 
 interface ProfitChartProps {
   points: number[];
@@ -10,20 +9,22 @@ interface ProfitChartProps {
   dataRange?: { min: number; max: number };
   yLabels?: string[];
   xLabels?: string[];
-  overlay?: (coords: ChartCoords) => React.ReactNode;
 }
 
 export function ProfitChart({
-  points,
+  points: allPoints,
   height: heightProp = 180,
   endLabel = '+3,560',
   dataRange: dataRangeProp,
   yLabels: yLabelsProp,
-  xLabels: xLabelsProp,
-  overlay,
+  xLabels: xLabelsProp = [],
 }: ProfitChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [containerWidth, setContainerWidth] = useState(310);
+
+  // 缩放状态
+  const [zoomRange, setZoomRange] = useState<[number, number] | null>(null);
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -38,6 +39,28 @@ export function ProfitChart({
 
   const width = Math.max(containerWidth, 200);
   const height = heightProp;
+  const totalLen = allPoints.length;
+
+  // 裁剪数据
+  const points = useMemo(() => {
+    if (!zoomRange || totalLen === 0) return allPoints;
+    return allPoints.slice(zoomRange[0], zoomRange[1] + 1);
+  }, [allPoints, zoomRange, totalLen]);
+
+  // 裁剪 xLabels
+  const xLabels = useMemo(() => {
+    if (!zoomRange || xLabelsProp.length === 0) return xLabelsProp;
+    const [start, end] = zoomRange;
+    const visible = xLabelsProp.slice(start, end + 1);
+    if (visible.length <= 5) return visible;
+    const count = 5;
+    const step = Math.max(1, Math.floor((visible.length - 1) / (count - 1)));
+    const result: string[] = [];
+    for (let i = 0; i < count; i++) {
+      result.push(visible[Math.min(i * step, visible.length - 1)]);
+    }
+    return result;
+  }, [zoomRange, xLabelsProp]);
 
   const padLeft = 40;
   const padRight = 10;
@@ -45,21 +68,21 @@ export function ProfitChart({
   const padBottom = 20;
   const chartW = width - padLeft - padRight;
   const chartH = height - padTop - padBottom;
-  const stepX = chartW / (points.length - 1);
+  const stepX = points.length > 1 ? chartW / (points.length - 1) : chartW;
   const midY = padTop + chartH / 2;
 
   const toY = (v: number) => padTop + (v / 140) * chartH;
   const toX = (i: number) => padLeft + i * stepX;
 
-  const dataRange = React.useMemo<{ min: number; max: number }>(() => {
-    if (dataRangeProp) return dataRangeProp;
+  const dataRange = useMemo<{ min: number; max: number }>(() => {
+    if (dataRangeProp && !zoomRange) return dataRangeProp;
     if (points.length === 0) return { min: 0, max: 0 };
     const minV = Math.min(...points);
     const maxV = Math.max(...points);
     return { min: maxV, max: minV };
-  }, [dataRangeProp, points]);
+  }, [dataRangeProp, points, zoomRange]);
 
-  const pointsVRange = React.useMemo<{ minV: number; maxV: number }>(() => {
+  const pointsVRange = useMemo<{ minV: number; maxV: number }>(() => {
     if (points.length === 0) return { minV: 0, maxV: 140 };
     return { minV: Math.min(...points), maxV: Math.max(...points) };
   }, [points]);
@@ -76,30 +99,69 @@ export function ProfitChart({
 
   const gridYs = [padTop, padTop + chartH / 4, midY, padTop + (chartH * 3) / 4, padTop + chartH];
   const yLabels = yLabelsProp ?? ['+4k', '+2k', '0', '-1k', '-2k'];
-  const xLabels = xLabelsProp ?? ['06-01', '06-08', '06-15', '06-22', '06-29'];
   const xLabelXs = xLabels.map((_, i) => padLeft + (chartW / (xLabels.length - 1)) * i);
 
   const endX = toX(points.length - 1);
   const endY = toY(points[points.length - 1]);
 
-  const coords: ChartCoords = {
-    width,
-    height,
-    padLeft,
-    padRight,
-    padTop,
-    padBottom,
-    chartW,
-    chartH,
-    toX,
-    toY,
-    dataToY,
-    dataRange,
-  };
+  // ===== 滚轮缩放 =====
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!e.altKey || totalLen < 4) return;
+    e.preventDefault();
+
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+
+    const currentStart = zoomRange ? zoomRange[0] : 0;
+    const currentEnd = zoomRange ? zoomRange[1] : totalLen - 1;
+    const currentLen = currentEnd - currentStart + 1;
+    const mouseIdx = currentStart + (mouseX / width) * currentLen;
+
+    const factor = e.deltaY < 0 ? 0.6 : 1.5;
+    const newLen = Math.max(4, Math.min(totalLen - 1, Math.round(currentLen * factor)));
+
+    let newStart = Math.round(mouseIdx - (mouseIdx - currentStart) * (newLen / currentLen));
+    if (newStart < 0) newStart = 0;
+    let newEnd = newStart + newLen - 1;
+    if (newEnd >= totalLen) {
+      newEnd = totalLen - 1;
+      newStart = Math.max(0, newEnd - newLen + 1);
+    }
+
+    if (newStart === currentStart && newEnd === currentEnd) return;
+
+    if (newStart <= 0 && newEnd >= totalLen - 1) {
+      setZoomRange(null);
+    } else {
+      setZoomRange([newStart, newEnd]);
+    }
+  }, [totalLen, zoomRange, width]);
+
+  const isZoomed = zoomRange !== null;
 
   return (
-    <div ref={containerRef} className="w-full">
-      <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
+    <div ref={containerRef} className="w-full relative">
+      {isZoomed && (
+        <button
+          type="button"
+          className="absolute top-1 right-1 z-10 px-2 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:opacity-70"
+          style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+          onClick={() => setZoomRange(null)}
+        >
+          重置
+        </button>
+      )}
+      <svg
+        ref={svgRef}
+        width="100%"
+        height={height}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+        onWheel={handleWheel}
+        style={{ cursor: isZoomed ? 'zoom-in' : 'default' }}
+      >
         <defs>
           <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={colors.primary} stopOpacity={0.12} />
@@ -128,7 +190,6 @@ export function ProfitChart({
         </text>
         <circle cx={endX} cy={endY} r={5} fill={colors.primary} opacity={0.2} />
         <circle cx={endX} cy={endY} r={3} fill={colors.primary} />
-        {overlay?.(coords)}
       </svg>
     </div>
   );

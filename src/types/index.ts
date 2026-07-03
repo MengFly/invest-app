@@ -31,18 +31,6 @@ export interface NavRecord {
   holdChange: number | null;
 }
 
-export type IndicatorGroup = '收益指标' | '风险指标' | '持仓指标' | '基金指标';
-
-export interface Indicator {
-  id: string;
-  name: string;
-  desc: string;
-  group: IndicatorGroup;
-  added: boolean;
-  displayPosition?: 'top' | 'overlay';
-  calcPeriod?: 'hold' | '1y' | '3y';
-}
-
 // ===== 持仓与交易记录 (本地存储) =====
 
 export interface Holding {
@@ -77,6 +65,12 @@ export interface HoldingSummary {
   navDate: string;
   sparkline: number[];
   sparklineUp: boolean;
+  // 持仓收益（仅当前持有份额的未实现盈亏）
+  holdingProfit: number;
+  holdingProfitRate: number;
+  // 买入统计数据（用于加权平均成本计算）
+  totalBuyCost: number;
+  totalBuyShares: number;
 }
 
 // ===== 真实接口响应类型 =====
@@ -119,85 +113,3 @@ export interface NetWorthRecord {
   netWorth: number;
   netWorthChange: number;
 }
-
-// ===== 指标系统核心类型 =====
-
-export type IndicatorPosition = 'top' | 'navChart' | 'profitChart';
-
-export type ConfigFieldType = 'boolean' | 'enum' | 'number';
-
-export interface ConfigField {
-  key: string;
-  label: string;
-  type: ConfigFieldType;
-  options?: { label: string; value: string }[];
-  min?: number;
-  max?: number;
-  step?: number;
-  default: boolean | string | number;
-}
-
-export type IndicatorConfig = Record<string, boolean | string | number>;
-
-export type LayerDescriptor =
-  | { kind: 'hline'; y: number; label?: string; stroke?: string; dash?: number[] }
-  | { kind: 'vline'; x: number; label?: string; stroke?: string; dash?: number[] }
-  | { kind: 'polyline'; points: { x: number; y: number }[]; stroke?: string; fill?: string }
-  | { kind: 'area'; points: { x: number; y: number }[]; fill: string }
-  | { kind: 'point'; x: number; y: number; r?: number; fill: string }
-  | { kind: 'endLabel'; x: number; y: number; text: string; bg?: string; color?: string }
-  | { kind: 'text'; x: number; y: number; text: string; color?: string; anchor?: 'start' | 'middle' | 'end' };
-
-export interface ValueResult {
-  value: string;
-  sub?: string;
-  color?: string;
-}
-
-export type IndicatorResult =
-  | { position: 'top'; value: ValueResult }
-  | { position: 'navChart' | 'profitChart'; layers: LayerDescriptor[] };
-
-export interface IndicatorContext {
-  code: string;
-  netWorths: NetWorthRecord[];
-  transactions: Transaction[];
-  summary: HoldingSummary | null;
-  basicInfo: FundBasicInfo | null;
-  range: '6m' | '1y' | '3y' | 'all';
-}
-
-export interface ChartCoords {
-  width: number;
-  height: number;
-  padLeft: number;
-  padRight: number;
-  padTop: number;
-  padBottom: number;
-  chartW: number;
-  chartH: number;
-  toX: (i: number) => number;
-  toY: (v: number) => number;
-  dataToY: (value: number) => number;
-  dataRange: { min: number; max: number };
-}
-
-export interface IndicatorDefinition {
-  id: string;
-  name: string;
-  desc: string;
-  group: '收益指标' | '风险指标' | '持仓指标' | '基金指标';
-  position: IndicatorPosition;
-  configSchema: ConfigField[];
-  defaultConfig: IndicatorConfig;
-  calculate(ctx: IndicatorContext, config: IndicatorConfig): IndicatorResult | null;
-  preview(): { ctx: IndicatorContext; result: IndicatorResult };
-}
-
-export interface IndicatorState {
-  enabled: boolean;
-  config: IndicatorConfig;
-  topOrder?: number;
-}
-
-export type IndicatorConfigMap = Record<string, IndicatorState>;

@@ -1,6 +1,6 @@
 // 数据导出导入工具 - 导出/导入持久化数据 (JSON)
-// 支持持仓、排序、交易记录、指标配置的合并导入
-import type { Holding, Transaction, IndicatorConfigMap } from '@/types';
+// 支持持仓、排序、交易记录的合并导入
+import type { Holding, Transaction } from '@/types';
 
 // ===== 导出数据类型定义 =====
 
@@ -12,7 +12,6 @@ export interface ExportData {
   holdings: Holding[];
   order: string[];
   transactions: Transaction[];
-  indicatorConfigs: Record<string, IndicatorConfigMap>;
 }
 
 // ===== localStorage 键 =====
@@ -20,7 +19,6 @@ export interface ExportData {
 const HOLDINGS_KEY = 'portfolio:holdings';
 const ORDER_KEY = 'portfolio:order';
 const TRANSACTIONS_KEY = 'portfolio:transactions';
-const INDICATOR_CONFIG_PREFIX = 'portfolio:indicator-config:';
 
 // ===== 导出 =====
 
@@ -29,26 +27,12 @@ export function exportData(): ExportData {
   const order = readJSON<string[]>(ORDER_KEY) ?? [];
   const transactions = readJSON<Transaction[]>(TRANSACTIONS_KEY) ?? [];
 
-  // 扫描所有 indicator config 键
-  const indicatorConfigs: Record<string, IndicatorConfigMap> = {};
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith(INDICATOR_CONFIG_PREFIX)) {
-      const fundCode = key.slice(INDICATOR_CONFIG_PREFIX.length);
-      const data = readJSON<IndicatorConfigMap>(key);
-      if (data) {
-        indicatorConfigs[fundCode] = data;
-      }
-    }
-  }
-
   return {
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     holdings,
     order,
     transactions,
-    indicatorConfigs,
   };
 }
 
@@ -76,13 +60,6 @@ export function importData(data: ExportData): ImportResult {
     mergeTransactions(data.transactions);
   } catch (e) {
     errors.push(`交易记录导入失败: ${e instanceof Error ? e.message : '未知错误'}`);
-  }
-
-  // 4. 合并指标配置：已有 fundCode 跳过，没有的新增
-  try {
-    mergeIndicatorConfigs(data.indicatorConfigs);
-  } catch (e) {
-    errors.push(`指标配置导入失败: ${e instanceof Error ? e.message : '未知错误'}`);
   }
 
   return { success: errors.length === 0, errors };
@@ -188,16 +165,6 @@ function mergeTransactions(imported: Transaction[]): void {
 
   if (changed) {
     localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(local));
-  }
-}
-
-function mergeIndicatorConfigs(imported: Record<string, IndicatorConfigMap>): void {
-  for (const [fundCode, configMap] of Object.entries(imported)) {
-    const key = `${INDICATOR_CONFIG_PREFIX}${fundCode}`;
-    const local = localStorage.getItem(key);
-    if (local === null) {
-      localStorage.setItem(key, JSON.stringify(configMap));
-    }
   }
 }
 

@@ -7,10 +7,14 @@ export function summarizeHolding(
 ): HoldingSummary {
   let holdShares = 0;
   let totalInvested = 0;
+  let totalBuyCost = 0;
+  let totalBuyShares = 0;
   for (const t of transactions) {
     if (t.type === 'buy') {
       holdShares += t.shares;
       totalInvested += t.amount;
+      totalBuyCost += t.amount;
+      totalBuyShares += t.shares;
     } else {
       holdShares -= t.shares;
       totalInvested -= t.amount;
@@ -27,6 +31,12 @@ export function summarizeHolding(
   const holdAmount = holdShares * latestNav;
   const totalProfit = holdAmount - totalInvested;
   const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
+
+  // 持仓收益（未实现）：持有市值 - 加权平均买入成本
+  const avgCostPerShare = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0;
+  const holdingCostBasis = avgCostPerShare * holdShares;
+  const holdingProfit = holdAmount - holdingCostBasis;
+  const holdingProfitRate = holdingCostBasis > 0 ? holdingProfit / holdingCostBasis : 0;
 
   const todayProfit = holdShares * prevNav * todayChange;
 
@@ -64,5 +74,11 @@ export function summarizeHolding(
     navDate,
     sparkline,
     sparklineUp,
+    // 持仓收益
+    holdingProfit,
+    holdingProfitRate,
+    // 买入统计
+    totalBuyCost,
+    totalBuyShares,
   };
 }
