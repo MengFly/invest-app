@@ -6,6 +6,7 @@ import {
   addTransaction as cloudAdd,
   updateTransactionCloud,
   removeTransactionCloud,
+  clearCloudTransactionsByFund,
 } from '@/services/supabase';
 
 const TRANSACTIONS_KEY = 'portfolio:transactions';
@@ -42,7 +43,7 @@ function writeTxCache(data: Transaction[], fundCode?: string): void {
 }
 
 /** 清除所有事务相关缓存（全量 + 各基金粒度） */
-function clearAllTxCache(): void {
+export function clearAllTxCache(): void {
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
     if (k === TX_CACHE_PREFIX || k?.startsWith(TX_CACHE_PREFIX + ':')) {
@@ -77,18 +78,18 @@ export async function getTransactions(fundCode?: string): Promise<Transaction[]>
   const cached = readTxCache(fundCode);
   if (cached) return cached;
 
-  let result: Transaction[];
-
   if (getStorageMode() === 'cloud') {
     try {
-      result = await cloudFetch(fundCode);
+      const result = await cloudFetch(fundCode);
+      writeTxCache(result, fundCode);
+      return result;
     } catch {
-      result = await fetchLocal(fundCode);
+      // 降级到本地，但不缓存，确保下次重试云端
+      return fetchLocal(fundCode);
     }
-  } else {
-    result = await fetchLocal(fundCode);
   }
 
+  const result = await fetchLocal(fundCode);
   writeTxCache(result, fundCode);
   return result;
 }
@@ -151,6 +152,7 @@ export async function updateTransaction(
 
 export async function removeByFund(fundCode: string): Promise<void> {
   if (getStorageMode() === 'cloud') {
+    await clearCloudTransactionsByFund(fundCode);
     clearAllTxCache();
     return;
   }

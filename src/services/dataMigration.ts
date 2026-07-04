@@ -2,6 +2,7 @@
 // 支持持仓、排序、交易记录的合并导入
 import type { Holding, Transaction } from '@/types';
 import { getStorageMode, syncLocalToCloud } from '@/services/supabase';
+import { clearAllTxCache } from '@/services/transaction';
 
 // ===== 导出数据类型定义 =====
 
@@ -59,6 +60,7 @@ export async function importData(data: ExportData): Promise<ImportResult> {
   // 3. 合并交易记录：按 id 去重，有的跳过
   try {
     mergeTransactions(data.transactions);
+    clearAllTxCache(); // 合并且清理缓存，确保后续 syncLocalToCloud 读到最新数据
   } catch (e) {
     errors.push(`交易记录导入失败: ${e instanceof Error ? e.message : '未知错误'}`);
   }

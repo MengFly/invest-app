@@ -266,14 +266,17 @@ export async function addHolding(holding: Holding, sortOrder: number): Promise<v
 export async function removeHolding(code: string): Promise<void> {
   const { client, error } = createClientFromConfig();
   if (!client) throw new Error(error);
-  // 先删交易记录
-  await client.from('fund_transactions').delete().eq('fundCode', code);
-  // 再删持仓
-  const { error: err } = await client.from('fund_holdings').delete().eq('code', code);
-  if (err) throw new Error(err.message);
-  clearCache('holdings');
-  clearCache('transactions');
-  clearCache('order');
+  try {
+    // 先删交易记录
+    await client.from('fund_transactions').delete().eq('fundCode', code);
+    // 再删持仓
+    const { error: err } = await client.from('fund_holdings').delete().eq('code', code);
+    if (err) throw new Error(err.message);
+  } finally {
+    clearCache('holdings');
+    clearCache('transactions');
+    clearCache('order');
+  }
 }
 
 /**
@@ -359,6 +362,17 @@ export async function removeTransactionCloud(id: string): Promise<void> {
   const { client, error } = createClientFromConfig();
   if (!client) throw new Error(error);
   const { error: err } = await client.from('fund_transactions').delete().eq('id', id);
+  if (err) throw new Error(err.message);
+  clearCache('transactions');
+}
+
+/**
+ * 清空某基金的全部云端交易记录
+ */
+export async function clearCloudTransactionsByFund(fundCode: string): Promise<void> {
+  const { client, error } = createClientFromConfig();
+  if (!client) throw new Error(error);
+  const { error: err } = await client.from('fund_transactions').delete().eq('fundCode', fundCode);
   if (err) throw new Error(err.message);
   clearCache('transactions');
 }
