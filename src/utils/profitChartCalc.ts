@@ -71,6 +71,8 @@ export interface DailyProfitResult {
   yLabels: string[];
   xLabels: string[];
   endLabel: string;
+  holdingPoints: number[];
+  holdingDataRange: { min: number; max: number };
 }
 
 export function calcDailyProfits(
@@ -84,9 +86,41 @@ export function calcDailyProfits(
   const max = Math.max(...profits);
   const points = profits.map((p) => profitToV(p, min, max));
 
+  // 计算持仓收益（未实现）：持有市值 - 加权平均买入成本
+  const sortedTxns = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+  let cumShares = 0;
+  let cumInvested = 0;
+  let totalBuyCost = 0;
+  let totalBuyShares = 0;
+  let txnIdx = 0;
+  const holdingProfits: number[] = [];
+  for (const rec of netWorths) {
+    while (txnIdx < sortedTxns.length && sortedTxns[txnIdx].date <= rec.date) {
+      const t = sortedTxns[txnIdx];
+      if (t.type === 'buy') {
+        cumShares += t.shares;
+        cumInvested += t.amount;
+        totalBuyCost += t.amount;
+        totalBuyShares += t.shares;
+      } else {
+        cumShares -= t.shares;
+        cumInvested -= t.amount;
+      }
+      txnIdx++;
+    }
+    const avgCost = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0;
+    holdingProfits.push(cumShares * rec.netWorth - cumShares * avgCost);
+  }
+
+  const holdingMin = Math.min(...holdingProfits);
+  const holdingMax = Math.max(...holdingProfits);
+  const holdingPoints = holdingProfits.map((p) => profitToV(p, holdingMin, holdingMax));
+
   return {
     points,
     dataRange: { min, max },
+    holdingPoints,
+    holdingDataRange: { min: holdingMin, max: holdingMax },
     yLabels: toYLabels(min, max),
     xLabels: toXLabels(netWorths),
     endLabel: profits[profits.length - 1] >= 0

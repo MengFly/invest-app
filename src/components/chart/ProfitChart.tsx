@@ -9,6 +9,8 @@ interface ProfitChartProps {
   dataRange?: { min: number; max: number };
   yLabels?: string[];
   xLabels?: string[];
+  holdingPoints?: number[];
+  holdingDataRange?: { min: number; max: number };
 }
 
 export function ProfitChart({
@@ -18,6 +20,8 @@ export function ProfitChart({
   dataRange: dataRangeProp,
   yLabels: yLabelsProp,
   xLabels: xLabelsProp = [],
+  holdingPoints: holdingPointsProp,
+  holdingDataRange: holdingDataRangeProp,
 }: ProfitChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -55,6 +59,12 @@ export function ProfitChart({
     if (!zoomRange || totalLen === 0) return allPoints;
     return allPoints.slice(zoomRange[0], zoomRange[1] + 1);
   }, [allPoints, zoomRange, totalLen]);
+
+  const holdingPoints = useMemo(() => {
+    if (!holdingPointsProp || holdingPointsProp.length === 0) return undefined;
+    if (!zoomRange || totalLen === 0) return holdingPointsProp;
+    return holdingPointsProp.slice(zoomRange[0], zoomRange[1] + 1);
+  }, [holdingPointsProp, zoomRange, totalLen]);
 
   // 裁剪 xLabels
   const xLabels = useMemo(() => {
@@ -251,6 +261,10 @@ export function ProfitChart({
         ))}
         <polygon points={areaPts} fill="url(#profitGrad)" />
         <polyline points={linePts} fill="none" stroke={colors.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {holdingPoints && holdingPoints.length > 1 && (() => {
+          const hpLine = holdingPoints.map((p, i) => `${toX(i).toFixed(1)},${toY(p).toFixed(1)}`).join(' ');
+          return <polyline points={hpLine} fill="none" stroke={colors.secondary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5,3" opacity={0.7} />;
+        })()}
         <rect x={endX - 42} y={endY - 18} width={40} height={16} rx={3} fill={colors.primary} />
         <text x={endX - 22} y={endY - 7} textAnchor="middle" fill="white" fontSize={8} fontWeight="600">
           {endLabel}
@@ -274,9 +288,17 @@ export function ProfitChart({
         const actualProfit = dataRange.min + range * (140 - points[hoveredIndex]) / 120;
         const profitColor = actualProfit >= 0 ? colors.profit : colors.loss;
 
+        let actualHoldingProfit: number | null = null;
+        let holdingProfitColor: string | undefined;
+        if (holdingPoints && holdingPoints[hoveredIndex] !== undefined && holdingDataRangeProp) {
+          const hRange = holdingDataRangeProp.max - holdingDataRangeProp.min || 1;
+          actualHoldingProfit = holdingDataRangeProp.min + hRange * (140 - holdingPoints[hoveredIndex]) / 120;
+          holdingProfitColor = actualHoldingProfit >= 0 ? colors.profit : colors.loss;
+        }
+
         const dateLabel = xLabels[hoveredIndex] || '';
         const tooltipW = 180;
-        const tooltipH = 75;
+        const tooltipH = actualHoldingProfit !== null ? 100 : 75;
         let left = mousePos.x + 16;
         let top = mousePos.y - 16 - tooltipH;
         if (left + tooltipW > window.innerWidth - 10) left = mousePos.x - 16 - tooltipW;
@@ -296,6 +318,14 @@ export function ProfitChart({
                 {actualProfit >= 0 ? '+' : ''}¥{actualProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
+            {actualHoldingProfit !== null && (
+              <div className="flex justify-between gap-4">
+                <span style={{ color: colors.textTertiary }}>持仓收益</span>
+                <span style={{ color: holdingProfitColor, fontFamily: 'Geist Mono, monospace' }}>
+                  {actualHoldingProfit >= 0 ? '+' : ''}¥{actualHoldingProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
           </div>
         );
       })()}

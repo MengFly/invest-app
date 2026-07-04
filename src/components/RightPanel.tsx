@@ -377,6 +377,8 @@ export function RightPanel({ code }: RightPanelProps) {
                       endLabel={dailyProfit.endLabel}
                       yLabels={dailyProfit.yLabels}
                       xLabels={dailyProfit.xLabels}
+                      holdingPoints={dailyProfit.holdingPoints}
+                      holdingDataRange={dailyProfit.holdingDataRange}
                       height={220}
                     />
                   </div>

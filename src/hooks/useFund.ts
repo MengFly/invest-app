@@ -40,6 +40,7 @@ export function useFundList(): HookResult<FundListItem[]> {
       if (cached) {
         setData(cached);
         setLoading(false);
+        return; // 缓存有效，跳过网络请求
       }
 
       // 2. 拉取最新数据
@@ -48,20 +49,13 @@ export function useFundList(): HookResult<FundListItem[]> {
         if (cancelled) return;
         setData(list);
         setLoading(false);
-        // 缓存写入单独处理，失败不影响 UI
         try {
           await setCached(CACHE_KEYS.FUND_LIST, list, CACHE_TTL.FUND_LIST);
         } catch { /* ignore */ }
       } catch (e) {
         if (cancelled) return;
-        // 拉取失败时，若已有缓存数据则保留，仅记录错误
-        if (!cached) {
-          setError(e instanceof Error ? e.message : '基金列表加载失败');
-          setLoading(false);
-        } else {
-          // 有缓存但刷新失败，静默处理
-          setLoading(false);
-        }
+        setError(e instanceof Error ? e.message : '基金列表加载失败');
+        setLoading(false);
       }
     })();
 
@@ -103,6 +97,7 @@ export function useFundBasicInfo(code: string | undefined): HookResult<FundBasic
       if (cached) {
         setData(cached);
         setLoading(false);
+        return; // 缓存有效，跳过网络请求
       }
 
       try {
@@ -115,12 +110,8 @@ export function useFundBasicInfo(code: string | undefined): HookResult<FundBasic
         } catch { /* ignore */ }
       } catch (e) {
         if (cancelled) return;
-        if (!cached) {
-          setError(e instanceof Error ? e.message : '基金信息加载失败');
-          setLoading(false);
-        } else {
-          setLoading(false);
-        }
+        setError(e instanceof Error ? e.message : '基金信息加载失败');
+        setLoading(false);
       }
     })();
 
@@ -162,6 +153,7 @@ export function useFundNetWorth(code: string | undefined): HookResult<NetWorthRe
       if (cached) {
         setData(cached);
         setLoading(false);
+        return; // 缓存有效，跳过网络请求
       }
 
       try {
@@ -174,12 +166,8 @@ export function useFundNetWorth(code: string | undefined): HookResult<NetWorthRe
         } catch { /* ignore */ }
       } catch (e) {
         if (cancelled) return;
-        if (!cached) {
-          setError(e instanceof Error ? e.message : '基金净值加载失败');
-          setLoading(false);
-        } else {
-          setLoading(false);
-        }
+        setError(e instanceof Error ? e.message : '基金净值加载失败');
+        setLoading(false);
       }
     })();
 

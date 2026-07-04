@@ -158,12 +158,59 @@ function createClientFromConfig(): { client: ReturnType<typeof createClient> | n
   }
 }
 
+// ==================== 缓存辅助 ====================
+
+const CACHE_PREFIX = 'supabase:cache:';
+const CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+
+function getCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() - entry.ts > CACHE_TTL) {
+      localStorage.removeItem(CACHE_PREFIX + key);
+      return null;
+    }
+    return entry.data as T;
+  } catch { return null; }
+}
+
+function setCache<T>(key: string, data: T): void {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
+  } catch {}
+}
+
+function clearCache(key?: string): void {
+  if (key) {
+    // 清除精确匹配和带次级前缀的（如 transactions 也清除 transactions:005827）
+    const prefix = CACHE_PREFIX + key;
+    const colonPrefix = prefix + ':';
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k === prefix || k?.startsWith(colonPrefix)) {
+        localStorage.removeItem(k);
+      }
+    }
+  } else {
+    // 清除所有云缓存
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
+    }
+  }
+}
+
 // ==================== fund_holdings CRUD ====================
 
 /**
  * 读取全部持仓（按 order 升序）
  */
 export async function fetchHoldings(): Promise<Holding[]> {
+  const cached = getCache<Holding[]>('holdings');
+  if (cached) return cached;
+
   const { client, error } = createClientFromConfig();
   if (!client) throw new Error(error);
   const { data, error: err } = await client
@@ -171,11 +218,13 @@ export async function fetchHoldings(): Promise<Holding[]> {
     .select('*')
     .order('order', { ascending: true });
   if (err) throw new Error(err.message);
-  return (data ?? []).map((r: any) => ({
+  const result = (data ?? []).map((r: any) => ({
     code: r.code,
     name: r.name,
     addedAt: r.addedAt ?? 0,
   }));
+  setCache('holdings', result);
+  return result;
 }
 
 /**
@@ -202,6 +251,7 @@ export async function addHolding(holding: Holding, sortOrder: number): Promise<v
     .from('fund_holdings')
     .insert({ code: holding.code, name: holding.name, addedAt: holding.addedAt, order: sortOrder });
   if (err) throw new Error(err.message);
+  clearCache('holdings');
 }
 
 /**
@@ -217,6 +267,8 @@ export async function removeHolding(code: string): Promise<void> {
   if (err) throw new Error(err.message);
 }
 
+  clearCache('holdings');
+  clearCache('transactions');
 /**
  * 更新持仓排序
  */
@@ -232,6 +284,7 @@ export async function updateOrder(orderedCodes: string[]): Promise<void> {
     await client.from('fund_holdings').update({ order: u.order }).eq('code', u.code);
   }
 }
+  clearCache('holdings');
 
 // ==================== fund_transactions CRUD ====================
 
@@ -239,6 +292,10 @@ export async function updateOrder(orderedCodes: string[]): Promise<void> {
  * 读取全部交易记录（按 createdAt 降序）
  */
 export async function fetchTransactions(fundCode?: string): Promise<Transaction[]> {
+  const cacheKey = 'transactions' + (fundCode ? `:${fundCode}` : '');
+  const cached = getCache<Transaction[]>(cacheKey);
+  if (cached) return cached;
+
   const { client, error } = createClientFromConfig();
   if (!client) throw new Error(error);
   let query = client.from('fund_transactions').select('*').order('createdAt', { ascending: false });
@@ -247,7 +304,7 @@ export async function fetchTransactions(fundCode?: string): Promise<Transaction[
   }
   const { data, error: err } = await query;
   if (err) throw new Error(err.message);
-  return (data ?? []).map((r: any) => ({
+  const result = (data ?? []).map((r: any) => ({
     id: r.id,
     fundCode: r.fundCode,
     type: r.type,
@@ -258,6 +315,8 @@ export async function fetchTransactions(fundCode?: string): Promise<Transaction[
     note: r.note ?? undefined,
     createdAt: r.createdAt,
   }));
+  setCache(cacheKey, result);
+  return result;
 }
 
 /**
@@ -268,6 +327,7 @@ export async function addTransaction(tx: Transaction): Promise<void> {
   if (!client) throw new Error(error);
   const { error: err } = await client.from('fund_transactions').insert(tx);
   if (err) throw new Error(err.message);
+  clearCache('transactions');
 }
 
 /**
@@ -281,6 +341,7 @@ export async function updateTransactionCloud(
   if (!client) throw new Error(error);
   const { error: err } = await client.from('fund_transactions').update(updates).eq('id', id);
   if (err) throw new Error(err.message);
+  clearCache('transactions');
 }
 
 /**
@@ -291,4 +352,5 @@ export async function removeTransactionCloud(id: string): Promise<void> {
   if (!client) throw new Error(error);
   const { error: err } = await client.from('fund_transactions').delete().eq('id', id);
   if (err) throw new Error(err.message);
+  clearCache('transactions');
 }

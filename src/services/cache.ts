@@ -9,9 +9,9 @@ export const CACHE_KEYS = {
 
 // 缓存 TTL (毫秒)
 export const CACHE_TTL = {
-  FUND_LIST: 24 * 60 * 60 * 1000,   // 1 天
-  FUND_INFO: 24 * 60 * 60 * 1000,   // 1 天
-  FUND_NETWORTH: 24 * 60 * 60 * 1000, // 1 天
+  FUND_LIST: 12 * 60 * 60 * 1000,   // 半天
+  FUND_INFO: 12 * 60 * 60 * 1000,   // 半天
+  FUND_NETWORTH: 12 * 60 * 60 * 1000, // 半天
 } as const;
 
 // 缓存条目结构
