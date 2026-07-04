@@ -161,7 +161,7 @@ function createClientFromConfig(): { client: ReturnType<typeof createClient> | n
 // ==================== 缓存辅助 ====================
 
 const CACHE_PREFIX = 'supabase:cache:';
-const CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时（仅在写入操作时清除缓存）
 
 function getCache<T>(key: string): T | null {
   try {
@@ -231,6 +231,9 @@ export async function fetchHoldings(): Promise<Holding[]> {
  * 读取持仓排序（code 列表）
  */
 export async function fetchOrder(): Promise<string[]> {
+  const cached = getCache<string[]>('order');
+  if (cached) return cached;
+
   const { client, error } = createClientFromConfig();
   if (!client) throw new Error(error);
   const { data, error: err } = await client
@@ -238,7 +241,9 @@ export async function fetchOrder(): Promise<string[]> {
     .select('code, order')
     .order('order', { ascending: true });
   if (err) throw new Error(err.message);
-  return (data ?? []).map((r: any) => r.code);
+  const result = (data ?? []).map((r: any) => r.code);
+  setCache('order', result);
+  return result;
 }
 
 /**
@@ -252,6 +257,7 @@ export async function addHolding(holding: Holding, sortOrder: number): Promise<v
     .insert({ code: holding.code, name: holding.name, addedAt: holding.addedAt, order: sortOrder });
   if (err) throw new Error(err.message);
   clearCache('holdings');
+  clearCache('order');
 }
 
 /**
@@ -265,10 +271,11 @@ export async function removeHolding(code: string): Promise<void> {
   // 再删持仓
   const { error: err } = await client.from('fund_holdings').delete().eq('code', code);
   if (err) throw new Error(err.message);
-}
-
   clearCache('holdings');
   clearCache('transactions');
+  clearCache('order');
+}
+
 /**
  * 更新持仓排序
  */
@@ -283,8 +290,9 @@ export async function updateOrder(orderedCodes: string[]): Promise<void> {
   for (const u of updates) {
     await client.from('fund_holdings').update({ order: u.order }).eq('code', u.code);
   }
-}
   clearCache('holdings');
+  clearCache('order');
+}
 
 // ==================== fund_transactions CRUD ====================
 
