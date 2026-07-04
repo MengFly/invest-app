@@ -3,14 +3,15 @@ import { colors } from '@/theme';
 import { formatPercent } from '@/utils/format';
 import { exportData, downloadJson, parseImportFile, importData } from '@/services/dataMigration';
 import { useAppStore } from '@/hooks/useAppStore';
-import { Download, Upload } from 'lucide-react';
+import { Download, Upload, Cloud } from 'lucide-react';
 import type { HoldingSummary } from '@/types';
 
 interface HeaderStatsProps {
   summaries: Record<string, HoldingSummary>;
+  onOpenSupabaseConfig?: () => void;
 }
 
-export function HeaderStats({ summaries }: HeaderStatsProps) {
+export function HeaderStats({ summaries, onOpenSupabaseConfig }: HeaderStatsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { triggerRefresh } = useAppStore();
 
@@ -45,7 +46,7 @@ export function HeaderStats({ summaries }: HeaderStatsProps) {
 
     try {
       const data = await parseImportFile(file);
-      const result = importData(data);
+      const result = await importData(data);
       if (result.success) {
         alert('数据导入成功');
         triggerRefresh();
@@ -122,6 +123,17 @@ export function HeaderStats({ summaries }: HeaderStatsProps) {
             <Download size={13} strokeWidth={1.5} />
             导出
           </button>
+          {onOpenSupabaseConfig && (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 hover:opacity-70 active:scale-[0.97]"
+              style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+              onClick={onOpenSupabaseConfig}
+            >
+              <Cloud size={13} strokeWidth={1.5} />
+              同步
+            </button>
+          )}
           <button
             type="button"
             className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 hover:opacity-70 active:scale-[0.97]"

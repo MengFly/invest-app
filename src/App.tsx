@@ -6,6 +6,7 @@ import { HeaderStats } from '@/components/HeaderStats';
 import { LeftPanel } from '@/components/LeftPanel';
 import { RightPanel } from '@/components/RightPanel';
 import { AddFundDialog } from '@/components/AddFundDialog';
+import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 import { colors } from '@/theme';
 
@@ -15,6 +16,7 @@ function AppContent() {
   const { summaries } = useAllSummaries(refreshTrigger);
 
   const [addFundOpen, setAddFundOpen] = useState(false);
+  const [supabaseConfigOpen, setSupabaseConfigOpen] = useState(false);
   const [deleteCode, setDeleteCode] = useState<string | null>(null);
 
   const handleRefresh = () => {
@@ -30,7 +32,7 @@ function AppContent() {
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: colors.bg }}>
       <header className="shrink-0">
-        <HeaderStats summaries={summaries} />
+        <HeaderStats summaries={summaries} onOpenSupabaseConfig={() => setSupabaseConfigOpen(true)} />
       </header>
 
       <div className="flex flex-1 overflow-hidden px-6 pb-4 gap-4">
@@ -54,6 +56,11 @@ function AppContent() {
         open={addFundOpen}
         onOpenChange={setAddFundOpen}
         onSuccess={handleRefresh}
+      />
+      <SupabaseConfigDialog
+        open={supabaseConfigOpen}
+        onOpenChange={setSupabaseConfigOpen}
+        onConfigChange={handleRefresh}
       />
 
       {deleteFund && (
