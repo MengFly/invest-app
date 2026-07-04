@@ -1,6 +1,7 @@
 // 数据导出导入工具 - 导出/导入持久化数据 (JSON)
 // 支持持仓、排序、交易记录的合并导入
 import type { Holding, Transaction } from '@/types';
+import { getStorageMode, syncLocalToCloud } from '@/services/supabase';
 
 // ===== 导出数据类型定义 =====
 
@@ -38,7 +39,7 @@ export function exportData(): ExportData {
 
 // ===== 导入 (合并) =====
 
-export function importData(data: ExportData): ImportResult {
+export async function importData(data: ExportData): Promise<ImportResult> {
   const errors: string[] = [];
 
   // 1. 合并持仓：文件中有的本地没有则新增，已有的跳过
@@ -60,6 +61,15 @@ export function importData(data: ExportData): ImportResult {
     mergeTransactions(data.transactions);
   } catch (e) {
     errors.push(`交易记录导入失败: ${e instanceof Error ? e.message : '未知错误'}`);
+  }
+
+  // 4. 云端模式下同步到 Supabase
+  if (getStorageMode() === 'cloud' && errors.length === 0) {
+    try {
+      await syncLocalToCloud();
+    } catch (e) {
+      errors.push(`云端同步失败: ${e instanceof Error ? e.message : '未知错误'}`);
+    }
   }
 
   return { success: errors.length === 0, errors };
