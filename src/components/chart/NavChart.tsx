@@ -448,18 +448,12 @@ export function NavChart({
         )}
 
         {/* 估算净值虚线 */}
-        {estimatedNav !== undefined && estimatedNav > 0 && dataRange.max > dataRange.min && (
+        {estimatedNav !== undefined && estimatedNav !== null && (
           <>
-            <line
-              x1={padLeft} y1={dataToY(estimatedNav)}
-              x2={width - padRight} y2={dataToY(estimatedNav)}
-              stroke={colors.warning} strokeWidth={1} strokeDasharray="2,3"
-            />
-            <circle
-              cx={width - padRight} cy={dataToY(estimatedNav)} r={3}
-              fill={colors.warning} stroke="#fff" strokeWidth={1}
-            />
-            <text x={padLeft + 4} y={dataToY(estimatedNav) - 4} fill={colors.warning} fontSize={9} fontFamily="monospace">
+            <line x1={padLeft} y1={dataToY(estimatedNav)} x2={width - padRight} y2={dataToY(estimatedNav)}
+              stroke={colors.textTertiary} strokeWidth={1} strokeDasharray="2,3" />
+            <circle cx={width - padRight} cy={dataToY(estimatedNav)} r={3} fill={colors.textTertiary} opacity={0.6} />
+            <text x={padLeft} y={dataToY(estimatedNav) - 4} textAnchor="start" fill={colors.textTertiary} fontSize={9}>
               估算 {estimatedNav.toFixed(4)}{estimatedTime ? ` (${estimatedTime.slice(5, 16)})` : ''}
             </text>
           </>
