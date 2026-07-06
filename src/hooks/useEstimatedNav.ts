@@ -34,7 +34,11 @@ export function useEstimatedNav(code: string | undefined): {
   error: string | null;
   refresh: () => void;
 } {
-  const [data, setData] = useState<EstimatedNavData | null>(null);
+  const [data, setData] = useState<EstimatedNavData | null>(() => {
+    if (!code) return null;
+    const cached = getCached(code);
+    return cached !== undefined ? cached : null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshFlag, setRefreshFlag] = useState(0);
@@ -49,24 +53,15 @@ export function useEstimatedNav(code: string | undefined): {
       return;
     }
 
-    // 检查缓存
-    const cached = getCached(code);
-    if (cached !== undefined) {
-      setData(cached);
-      setLoading(false);
-      return;
-    }
-
     cancelledRef.current = false;
-    setLoading(true);
-    setError(null);
 
-    (async () => {
+    const doFetch = async () => {
       try {
         const result = await fetchEstimatedNav(code);
-        if (cancelledRef.current) return;
         setCached(code, result);
-        setData(result);
+        if (!cancelledRef.current) {
+          setData(result);
+        }
       } catch {
         if (!cancelledRef.current) {
           setError('获取估算净值失败');
@@ -76,9 +71,18 @@ export function useEstimatedNav(code: string | undefined): {
           setLoading(false);
         }
       }
-    })();
+    };
 
-    return () => { cancelledRef.current = true; };
+    setLoading(true);
+    doFetch();
+
+    // 5 分钟轮询
+    const timer = setInterval(doFetch, POLL_INTERVAL);
+
+    return () => {
+      cancelledRef.current = true;
+      clearInterval(timer);
+    };
   }, [code, refreshFlag]);
 
   return { data, loading, error, refresh };
