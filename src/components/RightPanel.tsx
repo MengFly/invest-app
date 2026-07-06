@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { colors } from '@/theme';
-import { formatPercent, formatMoney } from '@/utils/format';
+import { formatPercent } from '@/utils/format';
 import { findNavByDate } from '@/utils/navUtils';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
@@ -106,7 +106,6 @@ export function RightPanel({ code }: RightPanelProps) {
   }, [refreshDetail, refreshTx, refreshNav, triggerRefresh]);
 
   const fundName = summary?.holding.name ?? code ?? '';
-  const navList = useMemo(() => (netWorths ? [...netWorths].reverse() : []), [netWorths]);
 
   // 交易记录按日期降序排列
   const sortedTransactions = useMemo(() => {
@@ -325,7 +324,7 @@ export function RightPanel({ code }: RightPanelProps) {
                         type="button"
                         className="px-4 py-2 rounded-md text-xs font-medium text-white cursor-pointer"
                         style={{ backgroundColor: colors.primary }}
-                        onClick={refresh}
+                        onClick={refreshNav}
                       >
                         重试
                       </button>

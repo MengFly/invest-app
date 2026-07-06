@@ -101,18 +101,6 @@ export function ProfitChart({
     return { min: maxV, max: minV };
   }, [dataRangeProp, points, zoomRange]);
 
-  const pointsVRange = useMemo<{ minV: number; maxV: number }>(() => {
-    if (points.length === 0) return { minV: 0, maxV: 140 };
-    return { minV: Math.min(...points), maxV: Math.max(...points) };
-  }, [points]);
-
-  const dataToY = (profit: number) => {
-    const range = dataRange.max - dataRange.min || 1;
-    const ratio = (dataRange.max - profit) / range;
-    const v = pointsVRange.minV + (pointsVRange.maxV - pointsVRange.minV) * ratio;
-    return toY(v);
-  };
-
   const linePts = points.map((p, i) => `${toX(i).toFixed(1)},${toY(p).toFixed(1)}`).join(' ');
   const areaPts = `${linePts} ${toX(points.length - 1).toFixed(1)},${midY.toFixed(1)} ${toX(0).toFixed(1)},${midY.toFixed(1)}`;
 
@@ -173,7 +161,6 @@ export function ProfitChart({
     if (!svg) return;
 
     if (isPanningRef.current) {
-      const rect = svg.getBoundingClientRect();
       const totalLen = allPoints.length;
       const currentLen = (zoomRange ? zoomRange[1] - zoomRange[0] : totalLen - 1) + 1;
       const chartW = width - 40 - 10;

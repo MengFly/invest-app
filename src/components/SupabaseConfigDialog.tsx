@@ -15,7 +15,6 @@ import {
   setStorageMode,
   testConnection,
   syncLocalToCloud,
-  type SupabaseConfig,
   type StorageMode,
 } from '@/services/supabase'
 

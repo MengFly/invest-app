@@ -147,7 +147,7 @@ export async function testConnection(config: SupabaseConfig): Promise<{ ok: bool
 /**
  * 创建 Supabase 客户端实例（使用已存储的配置）
  */
-function createClientFromConfig(): { client: ReturnType<typeof createClient> | null; error?: string } {
+function createClientFromConfig(): { client: any; error?: string } {
   const config = getSupabaseConfig();
   if (!config) return { client: null, error: '未配置 Supabase 连接信息' };
   try {
