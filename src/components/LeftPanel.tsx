@@ -1,6 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { colors } from '@/theme';
 import { formatMoney, formatPercent } from '@/utils/format';
+import { calcEstimatedProfit } from '@/utils/estimatedProfit';
 import { Plus } from 'lucide-react';
 import type { Holding, HoldingSummary } from '@/types';
 import type { EstimatedNavData } from '@/types';
@@ -155,6 +156,18 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
                           </div>
                         </div>
                       </div>
+                      {(() => {
+                        const ep = hasEstNav && estNav
+                          ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
+                          : null;
+                        return ep !== null ? (
+                          <div className="mt-0.5 text-right">
+                            <span className="text-[10px] font-mono" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                              今日预估 {formatMoney(ep, true)}
+                            </span>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </div>

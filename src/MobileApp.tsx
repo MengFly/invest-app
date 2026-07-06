@@ -4,6 +4,7 @@ import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
 import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
+import { calcEstimatedProfit } from '@/utils/estimatedProfit';
 import { AddFundDialog } from '@/components/AddFundDialog';
 import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
@@ -179,8 +180,20 @@ function MobileList() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-[10px]" style={{ color: colors.textTertiary }}>
-                      {summary.holdDays} 天
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="text-[10px]" style={{ color: colors.textTertiary }}>
+                        {summary.holdDays} 天
+                      </div>
+                      {(() => {
+                        const ep = hasEstNav
+                          ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
+                          : null;
+                        return ep !== null ? (
+                          <span className="text-[10px] font-mono" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                            今日预估 {formatMoney(ep, true)}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
                 </div>

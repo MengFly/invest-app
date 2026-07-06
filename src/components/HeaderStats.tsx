@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { colors } from '@/theme';
-import { formatPercent } from '@/utils/format';
+import { formatMoney, formatPercent } from '@/utils/format';
 import { exportData, downloadJson, parseImportFile, importData } from '@/services/dataMigration';
 import { useAppStore } from '@/hooks/useAppStore';
 import { Download, Upload, Cloud } from 'lucide-react';
@@ -9,9 +9,10 @@ import type { HoldingSummary } from '@/types';
 interface HeaderStatsProps {
   summaries: Record<string, HoldingSummary>;
   onOpenSupabaseConfig?: () => void;
+  estimatedProfit?: number | null;
 }
 
-export function HeaderStats({ summaries, onOpenSupabaseConfig }: HeaderStatsProps) {
+export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }: HeaderStatsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { triggerRefresh } = useAppStore();
 
@@ -104,6 +105,14 @@ export function HeaderStats({ summaries, onOpenSupabaseConfig }: HeaderStatsProp
             value={formatPercent(annualized)}
             valueColor={annualized >= 0 ? colors.profit : colors.loss}
           />
+
+          {estimatedProfit !== undefined && estimatedProfit !== null && (
+            <MetricBlock
+              label="今日预估收益"
+              value={formatMoney(estimatedProfit, true)}
+              valueColor={estimatedProfit >= 0 ? colors.profit : colors.loss}
+            />
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
