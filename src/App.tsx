@@ -1,85 +1,36 @@
-import { useState } from 'react';
-import { AppProvider, useAppStore } from '@/hooks/useAppStore';
-import { useHoldings } from '@/hooks/usePortfolio';
-import { useAllSummaries } from '@/hooks/useAllSummaries';
-import { HeaderStats } from '@/components/HeaderStats';
-import { LeftPanel } from '@/components/LeftPanel';
-import { RightPanel } from '@/components/RightPanel';
-import { AddFundDialog } from '@/components/AddFundDialog';
-import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
-import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
-import { colors } from '@/theme';
+import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { AppProvider } from '@/hooks/useAppStore';
+import DesktopApp from './DesktopApp';
+import MobileApp from './MobileApp';
 
-function AppContent() {
-  const { selectedFundCode, setSelectedFundCode, triggerRefresh, refreshTrigger } = useAppStore();
-  const { holdings } = useHoldings(refreshTrigger);
-  const { summaries } = useAllSummaries(refreshTrigger);
+function RootRedirect() {
+  const [target, setTarget] = useState<'desktop' | 'mobile' | null>(null);
 
-  const [addFundOpen, setAddFundOpen] = useState(false);
-  const [supabaseConfigOpen, setSupabaseConfigOpen] = useState(false);
-  const [deleteCode, setDeleteCode] = useState<string | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    setTarget(mq.matches ? 'mobile' : 'desktop');
 
-  const handleRefresh = () => {
-    triggerRefresh();
-  };
+    const handler = (e: MediaQueryListEvent) => {
+      setTarget(e.matches ? 'mobile' : 'desktop');
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
-  const handleDelete = (code: string) => {
-    setDeleteCode(code);
-  };
-
-  const deleteFund = deleteCode ? holdings.find((h) => h.code === deleteCode) : null;
-
-  return (
-    <div className="h-screen flex flex-col" style={{ backgroundColor: colors.bg }}>
-      <header className="shrink-0">
-        <HeaderStats summaries={summaries} onOpenSupabaseConfig={() => setSupabaseConfigOpen(true)} />
-      </header>
-
-      <div className="flex flex-1 overflow-hidden px-6 pb-4 gap-4">
-        <div className="w-80 shrink-0 rounded-xl overflow-hidden border shadow-sm" style={{ borderColor: colors.borderLight, backgroundColor: colors.bgCard }}>
-          <LeftPanel
-            holdings={holdings}
-            summaries={summaries}
-            selectedCode={selectedFundCode}
-            onSelect={setSelectedFundCode}
-            onAddFund={() => setAddFundOpen(true)}
-            onDelete={handleDelete}
-          />
-        </div>
-
-        <div className="flex-1 rounded-xl overflow-hidden border shadow-sm" style={{ borderColor: colors.borderLight, backgroundColor: colors.bgCard }}>
-          <RightPanel code={selectedFundCode} />
-        </div>
-      </div>
-
-      <AddFundDialog
-        open={addFundOpen}
-        onOpenChange={setAddFundOpen}
-        onSuccess={handleRefresh}
-      />
-      <SupabaseConfigDialog
-        open={supabaseConfigOpen}
-        onOpenChange={setSupabaseConfigOpen}
-        onConfigChange={handleRefresh}
-      />
-
-      {deleteFund && (
-        <DeleteConfirmDialog
-          open={!!deleteCode}
-          onOpenChange={(open) => { if (!open) setDeleteCode(null); }}
-          fundCode={deleteFund.code}
-          fundName={deleteFund.name}
-          onSuccess={handleRefresh}
-        />
-      )}
-    </div>
-  );
+  if (!target) return null;
+  return <Navigate to={`/${target}`} replace />;
 }
 
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <Routes>
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/desktop" element={<DesktopApp />} />
+        <Route path="/mobile" element={<MobileApp />} />
+        <Route path="/mobile/:code" element={<MobileApp />} />
+      </Routes>
     </AppProvider>
   );
 }
