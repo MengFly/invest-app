@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
@@ -26,7 +26,7 @@ function MobileList() {
   const { triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
-  const codes = holdings.map((h) => h.code);
+  const codes = useMemo(() => holdings.map((h) => h.code), [holdings]);
   const estimatedNavs = useAllEstimatedNavs(codes);
 
   const [addFundOpen, setAddFundOpen] = useState(false);

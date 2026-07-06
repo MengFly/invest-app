@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
@@ -15,7 +15,7 @@ export default function DesktopApp() {
   const { selectedFundCode, setSelectedFundCode, triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
-  const codes = holdings.map((h) => h.code);
+  const codes = useMemo(() => holdings.map((h) => h.code), [holdings]);
   const estimatedNavs = useAllEstimatedNavs(codes);
 
   const [addFundOpen, setAddFundOpen] = useState(false);
