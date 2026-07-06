@@ -27,6 +27,7 @@ function MobileList() {
   const { triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
+
   const codes = useMemo(() => holdings.map((h) => h.code), [holdings]);
   const estimatedNavs = useAllEstimatedNavs(codes);
 
@@ -124,9 +125,7 @@ function MobileList() {
               );
             }
 
-            const estNav = estimatedNavs[holding.code];
-            const hasEstNav = estNav !== null && estNav !== undefined;
-            const todayChange = hasEstNav ? estNav!.estimatedChange / 100 : summary.todayChange;
+            const todayChange = summary.todayChange;
             const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
 
             return (
@@ -165,13 +164,21 @@ function MobileList() {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-4">
                       <div>
-                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>{hasEstNav ? '估值' : '今日'}</div>
-                        <div
-                          className="text-xs font-semibold font-mono leading-5"
-                          style={{ color: hasEstNav ? todayColor : colors.textTertiary }}
-                        >
-                          {hasEstNav ? formatPercent(todayChange) : '--'}
+                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
+                        <div className="text-xs font-semibold font-mono leading-5" style={{ color: todayColor }}>
+                          {formatPercent(todayChange)}
                         </div>
+                        {(() => {
+                          const estNav = estimatedNavs[holding.code];
+                          const ep = estNav
+                            ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
+                            : null;
+                          return ep !== null ? (
+                            <div className="text-[10px] font-mono leading-4" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                              {formatMoney(ep, true)}
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                       <div>
                         <div className="text-[10px]" style={{ color: colors.textTertiary }}>收益</div>
@@ -180,20 +187,8 @@ function MobileList() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="text-[10px]" style={{ color: colors.textTertiary }}>
-                        {summary.holdDays} 天
-                      </div>
-                      {(() => {
-                        const ep = hasEstNav
-                          ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
-                          : null;
-                        return ep !== null ? (
-                          <span className="text-[10px] font-mono" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
-                            今日预估 {formatMoney(ep, true)}
-                          </span>
-                        ) : null;
-                      })()}
+                    <div className="text-[10px]" style={{ color: colors.textTertiary }}>
+                      {summary.holdDays} 天
                     </div>
                   </div>
                 </div>

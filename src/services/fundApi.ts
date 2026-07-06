@@ -76,50 +76,37 @@ export async function fetchFundNetWorth(code: string): Promise<NetWorthRecord[]>
 }
 
 /**
- * 拉取天天基金实时估算净值（JSONP 接口）
- * 使用 script 标签加载 JSONP，自动解析为 EstimatedNavData
- * GET https://fundgz.1234567.com.cn/js/{code}.js?rt={timestamp}
+ * 拉取基金实时估算净值（天天基金 JSONP 接口）
+ * 使用 script 标签注入方式请求，通过全局回调接收数据
  */
 export async function fetchEstimatedNav(code: string): Promise<EstimatedNavData | null> {
   return new Promise((resolve) => {
-    const timestamp = Date.now();
-    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${timestamp}`;
+    const callbackName = `jsonpgz_${code}_${Date.now()}`;
+    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
 
     const cleanup = () => {
-      delete (window as any).jsonpgz;
-      const s = document.querySelector(`script[data-est-nav="${code}"]`);
-      if (s) document.body.removeChild(s);
+      delete (window as any)[callbackName];
+      const el = document.getElementById(`script_${callbackName}`);
+      el?.remove();
     };
 
-    (window as any).jsonpgz = (data: any) => {
+    (window as any)[callbackName] = (data: any) => {
       cleanup();
-      if (!data || data.gsz === undefined) {
+      if (data && data.fundCode) {
+        resolve(data as EstimatedNavData);
+      } else {
         resolve(null);
-        return;
       }
-      resolve({
-        fundCode: data.fundcode,
-        name: data.name,
-        navDate: data.jzrq,
-        nav: parseFloat(data.dwjz),
-        estimatedNav: parseFloat(data.gsz),
-        estimatedChange: parseFloat(data.gszzl),
-        estimatedTime: data.gztime,
-      });
     };
 
     const script = document.createElement('script');
+    script.id = `script_${callbackName}`;
     script.src = url;
-    script.setAttribute('data-est-nav', code);
-    script.onerror = () => {
-      cleanup();
-      resolve(null);
-    };
+    script.onerror = () => { cleanup(); resolve(null); };
     document.body.appendChild(script);
 
-    // 10 秒超时
     setTimeout(() => {
-      if ((window as any).jsonpgz) {
+      if ((window as any)[callbackName]) {
         cleanup();
         resolve(null);
       }

@@ -16,6 +16,7 @@ export default function DesktopApp() {
   const { selectedFundCode, setSelectedFundCode, triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
+
   const codes = useMemo(() => holdings.map((h) => h.code), [holdings]);
   const estimatedNavs = useAllEstimatedNavs(codes);
 

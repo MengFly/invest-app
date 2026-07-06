@@ -7,7 +7,6 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
 import { useFundNetWorth, useFundBasicInfo } from '@/hooks/useFund';
 import { useAppStore } from '@/hooks/useAppStore';
-import { useEstimatedNav } from '@/hooks/useEstimatedNav';
 import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
 import { BuyDialog } from '@/components/BuyDialog';
@@ -99,7 +98,6 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   const { data: netWorths, loading, error, refresh: refreshNav } = useFundNetWorth(code);
   const { data: transactions, refresh: refreshTx } = useTransactions(code);
   const { data: basicInfo } = useFundBasicInfo(code);
-  const estimatedNavData = useEstimatedNav(code);
 
   const handleTransactionSuccess = useCallback(() => {
     refreshDetail();
@@ -349,8 +347,6 @@ export default function MobileDetail({ code }: MobileDetailProps) {
                   showCumulativeCostPolyline={showCumulativeCostPolyline}
                   showTxDots={showTxDots}
                   height={200}
-                  estimatedNav={estimatedNavData?.estimatedNav}
-                  estimatedTime={estimatedNavData?.estimatedTime}
                 />
               </div>
             ) : (

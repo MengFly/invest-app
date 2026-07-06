@@ -6,11 +6,11 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
 import { useFundNetWorth, useFundBasicInfo } from '@/hooks/useFund';
 import { useAppStore } from '@/hooks/useAppStore';
-import { useEstimatedNav } from '@/hooks/useEstimatedNav';
 import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
 import { BuyDialog } from '@/components/BuyDialog';
 import { SellDialog } from '@/components/SellDialog';
+import { DividendDialog } from '@/components/DividendDialog';
 import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { FundInfoDialog } from '@/components/FundInfoDialog';
 import { calcDailyProfits } from '@/utils/profitChartCalc';
@@ -82,6 +82,7 @@ export function RightPanel({ code }: RightPanelProps) {
 
   const [buyOpen, setBuyOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
+  const [dividendOpen, setDividendOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
@@ -98,7 +99,6 @@ export function RightPanel({ code }: RightPanelProps) {
   const { data: netWorths, loading, error, refresh: refreshNav } = useFundNetWorth(code ?? undefined);
   const { data: transactions, refresh: refreshTx } = useTransactions(code ?? undefined);
   const { data: basicInfo } = useFundBasicInfo(code ?? undefined);
-  const estimatedNavData = useEstimatedNav(code ?? undefined);
 
   const handleTransactionSuccess = useCallback(() => {
     refreshDetail();
@@ -227,6 +227,14 @@ export function RightPanel({ code }: RightPanelProps) {
                 }
                 tooltip="累计成本线 = 净投入 ÷ 持有份额\\n= (总买入金额 - 总卖出金额) ÷ 持有份额\\n（扣除卖出回收后的净成本单价）"
               />
+              {summary.totalManagementFee > 0 && (
+                <MiniMetric
+                  label="累计管理费"
+                  value={`¥${summary.totalManagementFee.toFixed(2)}`}
+                  valueColor={colors.loss}
+                  tooltip={`管理费 = 持有金额 × 年费率 ÷ 365 × 持有天数`}
+                />
+              )}
             </div>
           )}
 
@@ -344,8 +352,6 @@ export function RightPanel({ code }: RightPanelProps) {
                         showCumulativeCostPolyline={showCumulativeCostPolyline}
                         showTxDots={showTxDots}
                         height={220}
-                        estimatedNav={estimatedNavData?.estimatedNav}
-                        estimatedTime={estimatedNavData?.estimatedTime}
                       />
                     </div>
                   ) : (
@@ -415,6 +421,14 @@ export function RightPanel({ code }: RightPanelProps) {
                     >
                       减仓
                     </button>
+                    <button
+                      type="button"
+                      className="rounded-full px-3 py-1 text-[10px] font-semibold cursor-pointer transition-all duration-150 active:scale-[0.97]"
+                      style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}
+                      onClick={() => setDividendOpen(true)}
+                    >
+                      分红
+                    </button>
                   </div>
                 </div>
 
@@ -442,9 +456,10 @@ export function RightPanel({ code }: RightPanelProps) {
                       const change = navRec ? navRec.netWorthChange / 100 : 0;
                       const changeColor = change >= 0 ? colors.primary : colors.loss;
                       const isBuy = tx.type === 'buy';
-                      const typeColor = isBuy ? colors.profit : colors.loss;
-                      const typeText = isBuy ? '买入' : '卖出';
-                      const sign = isBuy ? '+' : '-';
+                      const isDividend = tx.type === 'dividend';
+                      const typeColor = isDividend ? '#16A34A' : (isBuy ? colors.profit : colors.loss);
+                      const typeText = isDividend ? '分红' : (isBuy ? '买入' : '卖出');
+                      const sign = isDividend ? '+' : (isBuy ? '+' : '-');
                       return (
                         <div
                           key={tx.id}
@@ -508,6 +523,14 @@ export function RightPanel({ code }: RightPanelProps) {
         netWorths={netWorths ?? []}
         basicInfo={basicInfo}
         transactions={transactions ?? []}
+        onSuccess={handleTransactionSuccess}
+      />
+      <DividendDialog
+        open={dividendOpen}
+        onOpenChange={setDividendOpen}
+        fundCode={code}
+        fundName={fundName}
+        netWorths={netWorths ?? []}
         onSuccess={handleTransactionSuccess}
       />
       <FundInfoDialog

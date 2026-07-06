@@ -42,7 +42,7 @@ export interface Holding {
 export interface Transaction {
   id: string;
   fundCode: string;
-  type: 'buy' | 'sell';
+  type: 'buy' | 'sell' | 'dividend';
   date: string;
   amount: number;
   shares: number;
@@ -71,6 +71,10 @@ export interface HoldingSummary {
   // 买入统计数据（用于加权平均成本计算）
   totalBuyCost: number;
   totalBuyShares: number;
+  // 分红累计
+  totalDividend: number;
+  // 管理费累计
+  totalManagementFee: number;
 }
 
 // ===== 真实接口响应类型 =====
@@ -114,14 +118,14 @@ export interface NetWorthRecord {
   netWorthChange: number;
 }
 
-// ===== 天天基金估算净值接口响应 =====
+// ===== 估算净值（天天基金实时接口） =====
 
 export interface EstimatedNavData {
   fundCode: string;
   name: string;
-  navDate: string;           // jzrq - 最新公布净值日期
-  nav: number;               // dwjz - 最新公布单位净值
-  estimatedNav: number;      // gsz - 估算净值
-  estimatedChange: number;   // gszzl - 估算涨跌幅（百分比）
-  estimatedTime: string;     // gztime - 估算时间
+  navDate: string;
+  nav: number;
+  estimatedNav: number;
+  estimatedChange: number;
+  estimatedTime: string;
 }

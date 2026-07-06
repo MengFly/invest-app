@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getOrderedHoldings, getHoldings } from '@/services/portfolio';
 import { getTransactions } from '@/services/transaction';
-import { useFundNetWorth } from '@/hooks/useFund';
+import { useFundNetWorth, useFundBasicInfo } from '@/hooks/useFund';
 import { summarizeHolding } from '@/utils/holdingCalc';
 import type { Holding, Transaction, HoldingSummary } from '@/types';
 
@@ -89,6 +89,8 @@ export function useHoldingDetail(code: string | undefined): {
   const { data: transactions, loading: txLoading, refresh: refreshTx } = useTransactions(code);
   // 真实净值 (复用现有 hook, 含缓存)
   const { data: netWorths, loading: navLoading, refresh: refreshNav } = useFundNetWorth(code);
+  // 基金基本信息（含管理费率）
+  const { data: basicInfo } = useFundBasicInfo(code);
 
   const refresh = useCallback(() => {
     setRefreshFlag((f) => f + 1);
@@ -118,8 +120,12 @@ export function useHoldingDetail(code: string | undefined): {
   // 聚合计算
   const summary = useMemo<HoldingSummary | null>(() => {
     if (!holding) return null;
-    return summarizeHolding(holding, transactions, netWorths);
-  }, [holding, transactions, netWorths]);
+    // 取第一条管理费率
+    const mgmtFeeRate = basicInfo?.managementFees?.[0]?.value
+      ? basicInfo.managementFees[0].value / 100
+      : undefined;
+    return summarizeHolding(holding, transactions, netWorths, mgmtFeeRate);
+  }, [holding, transactions, netWorths, basicInfo]);
 
   const loading = holdingLoading || txLoading || (holding && navLoading && !netWorths ? true : false);
 

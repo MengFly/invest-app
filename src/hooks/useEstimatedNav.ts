@@ -1,12 +1,15 @@
-// 估算净值 hooks - 支持批量和单个基金的实时估值拉取 + 5分钟轮询
-// 使用模块级缓存避免列表页和详情页重复请求同一基金
-import { useState, useEffect, useMemo } from 'react';
+/**
+ * 估算净值 Hook
+ * 封装天天基金实时估算净值的数据获取逻辑
+ * 使用模块级缓存避免重复请求，5 分钟轮询刷新
+ */
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchEstimatedNav } from '@/services/fundApi';
 import type { EstimatedNavData } from '@/types';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 分钟
 
-// 模块级共享缓存，列表页和详情页共用
+// 模块级缓存，跨 Hook 实例共享
 const cache = new Map<string, { data: EstimatedNavData | null; ts: number }>();
 
 function getCached(code: string): EstimatedNavData | null | undefined {
@@ -14,119 +17,127 @@ function getCached(code: string): EstimatedNavData | null | undefined {
   if (entry && Date.now() - entry.ts < POLL_INTERVAL) {
     return entry.data;
   }
-  return undefined; // 无缓存或已过期
+  return undefined; // 表示缓存过期或不存在
 }
 
-function setCached(code: string, data: EstimatedNavData | null) {
+function setCached(code: string, data: EstimatedNavData | null): void {
   cache.set(code, { data, ts: Date.now() });
 }
 
 /**
- * Hook for single fund estimated nav
- * - On mount: check cache first, fetch if stale
- * - Auto refresh every 5 minutes
- * - Returns null if no code or request failed
+ * 获取单只基金的估算净值（详情页使用）
+ * 优先读缓存，缓存过期则发起 JSONP 请求
  */
-export function useEstimatedNav(code: string | undefined): EstimatedNavData | null {
-  const [data, setData] = useState<EstimatedNavData | null>(() => {
-    if (!code) return null;
-    const cached = getCached(code);
-    return cached !== undefined ? cached : null;
-  });
+export function useEstimatedNav(code: string | undefined): {
+  data: EstimatedNavData | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
+  const [data, setData] = useState<EstimatedNavData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshFlag, setRefreshFlag] = useState(0);
+  const cancelledRef = useRef(false);
+
+  const refresh = useCallback(() => setRefreshFlag((f) => f + 1), []);
 
   useEffect(() => {
     if (!code) {
       setData(null);
+      setLoading(false);
       return;
     }
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
-
-    const doFetch = async () => {
-      const res = await fetchEstimatedNav(code);
-      setCached(code, res);
-      if (!cancelled) {
-        setData(res);
-      }
-    };
-
-    // 仅在无有效缓存时发起网络请求
+    // 检查缓存
     const cached = getCached(code);
-    if (cached === undefined) {
-      doFetch();
-    } else {
+    if (cached !== undefined) {
       setData(cached);
+      setLoading(false);
+      return;
     }
 
-    timer = setInterval(doFetch, POLL_INTERVAL);
+    cancelledRef.current = false;
+    setLoading(true);
+    setError(null);
 
-    return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
-    };
-  }, [code]);
+    (async () => {
+      try {
+        const result = await fetchEstimatedNav(code);
+        if (cancelledRef.current) return;
+        setCached(code, result);
+        setData(result);
+      } catch {
+        if (!cancelledRef.current) {
+          setError('获取估算净值失败');
+        }
+      } finally {
+        if (!cancelledRef.current) {
+          setLoading(false);
+        }
+      }
+    })();
 
-  return data;
+    return () => { cancelledRef.current = true; };
+  }, [code, refreshFlag]);
+
+  return { data, loading, error, refresh };
 }
 
 /**
- * Hook for bulk estimated nav (for fund list page)
- * - request all codes immediately
- * - auto refresh every 5 minutes
- * - returns Record<code, EstimatedNavData | null>
- * - request failure sets null, doesn't affect other codes
+ * 批量获取多只基金的估算净值（列表页使用）
+ * 串行请求避免 JSONP 全局回调冲突，共享模块级缓存
  */
 export function useAllEstimatedNavs(codes: string[]): Record<string, EstimatedNavData | null> {
-  const [result, setResult] = useState<Record<string, EstimatedNavData | null>>(() => {
-    // 初始化时从缓存读取
-    const init: Record<string, EstimatedNavData | null> = {};
+  const [navs, setNavs] = useState<Record<string, EstimatedNavData | null>>({});
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchAll = useCallback(async () => {
+    const result: Record<string, EstimatedNavData | null> = {};
     for (const code of codes) {
       const cached = getCached(code);
-      if (cached !== undefined) init[code] = cached;
+      if (cached !== undefined) {
+        result[code] = cached;
+      } else {
+        try {
+          const data = await fetchEstimatedNav(code);
+          setCached(code, data);
+          result[code] = data;
+        } catch {
+          // 单个失败不影响其他
+        }
+      }
     }
-    return init;
-  });
+    setNavs((prev) => {
+      // 合并新旧数据，保留未变化的缓存值
+      const merged = { ...prev };
+      for (const code of codes) {
+        if (result[code] !== undefined) {
+          merged[code] = result[code];
+        }
+      }
+      return merged;
+    });
+  }, [codes]);
 
   useEffect(() => {
     if (codes.length === 0) {
-      setResult({});
+      setNavs({});
       return;
     }
 
-    let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    fetchAll();
 
-    const doFetchAll = async () => {
-      const nextResult: Record<string, EstimatedNavData | null> = { ...result };
-      // JSONP 全局回调不能并行，改为串行
-      for (const code of codes) {
-        if (cancelled) return;
-
-        // 有有效缓存则跳过
-        const cached = getCached(code);
-        if (cached !== undefined) {
-          nextResult[code] = cached;
-          continue;
-        }
-
-        const data = await fetchEstimatedNav(code);
-        setCached(code, data);
-        nextResult[code] = data;
-      }
-      if (!cancelled) {
-        setResult(nextResult);
-      }
-    };
-
-    doFetchAll();
-    timer = setInterval(doFetchAll, POLL_INTERVAL);
+    // 5 分钟轮询
+    intervalRef.current = setInterval(fetchAll, POLL_INTERVAL);
 
     return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     };
-  }, [codes]);
+  }, [fetchAll, codes.length]);
 
-  return useMemo(() => result, [result]);
+  return navs;
 }

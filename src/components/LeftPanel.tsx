@@ -74,9 +74,7 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
             }
 
             const isSelected = selectedCode === holding.code;
-            const estNav = estimatedNavs[holding.code];
-            const hasEstNav = estNav !== null && estNav !== undefined;
-            const todayChange = hasEstNav ? estNav!.estimatedChange / 100 : summary.todayChange;
+            const todayChange = summary.todayChange;
             const profitColor = summary.totalProfit >= 0 ? colors.profit : colors.loss;
             const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
             const sparklinePoints = summary.sparkline;
@@ -138,13 +136,24 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>{hasEstNav ? '估值' : '今日'}</div>
+                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
                           <div
                             className="text-xs font-semibold font-mono leading-5"
-                            style={{ color: hasEstNav ? todayColor : colors.textTertiary }}
+                            style={{ color: todayColor }}
                           >
-                            {hasEstNav ? formatPercent(todayChange) : '--'}
+                            {formatPercent(todayChange)}
                           </div>
+                          {(() => {
+                            const estNav = estimatedNavs[holding.code];
+                            const ep = estNav
+                              ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
+                              : null;
+                            return ep !== null ? (
+                              <div className="text-[10px] font-mono leading-4" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                                {formatMoney(ep, true)}
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="text-right">
                           <div className="text-[10px]" style={{ color: colors.textTertiary }}>收益</div>
@@ -156,18 +165,6 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
                           </div>
                         </div>
                       </div>
-                      {(() => {
-                        const ep = hasEstNav && estNav
-                          ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
-                          : null;
-                        return ep !== null ? (
-                          <div className="mt-0.5 text-right">
-                            <span className="text-[10px] font-mono" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
-                              今日预估 {formatMoney(ep, true)}
-                            </span>
-                          </div>
-                        ) : null;
-                      })()}
                     </div>
                   </div>
                 </div>
