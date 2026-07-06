@@ -1,5 +1,5 @@
 // 基金接口服务层 - 封装三个真实接口的请求
-import type { FundListItem, FundBasicInfo, NetWorthRecord } from '@/types';
+import type { FundListItem, FundBasicInfo, NetWorthRecord, EstimatedNavData } from '@/types';
 
 // 接口基础地址
 const BASE_URL = 'https://mengfly.github.io/invest-backend/fund';
@@ -73,4 +73,56 @@ export async function fetchFundNetWorth(code: string): Promise<NetWorthRecord[]>
     throw new Error('基金净值数据格式错误');
   }
   return data as NetWorthRecord[];
+}
+
+/**
+ * 拉取天天基金实时估算净值（JSONP 接口）
+ * 使用 script 标签加载 JSONP，自动解析为 EstimatedNavData
+ * GET https://fundgz.1234567.com.cn/js/{code}.js?rt={timestamp}
+ */
+export async function fetchEstimatedNav(code: string): Promise<EstimatedNavData | null> {
+  return new Promise((resolve) => {
+    const timestamp = Date.now();
+    const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${timestamp}`;
+
+    const cleanup = () => {
+      delete (window as any).jsonpgz;
+      const s = document.querySelector(`script[data-est-nav="${code}"]`);
+      if (s) document.body.removeChild(s);
+    };
+
+    (window as any).jsonpgz = (data: any) => {
+      cleanup();
+      if (!data || data.gsz === undefined) {
+        resolve(null);
+        return;
+      }
+      resolve({
+        fundCode: data.fundcode,
+        name: data.name,
+        navDate: data.jzrq,
+        nav: parseFloat(data.dwjz),
+        estimatedNav: parseFloat(data.gsz),
+        estimatedChange: parseFloat(data.gszzl),
+        estimatedTime: data.gztime,
+      });
+    };
+
+    const script = document.createElement('script');
+    script.src = url;
+    script.setAttribute('data-est-nav', code);
+    script.onerror = () => {
+      cleanup();
+      resolve(null);
+    };
+    document.body.appendChild(script);
+
+    // 10 秒超时
+    setTimeout(() => {
+      if ((window as any).jsonpgz) {
+        cleanup();
+        resolve(null);
+      }
+    }, 10000);
+  });
 }

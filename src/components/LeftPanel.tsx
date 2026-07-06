@@ -3,17 +3,19 @@ import { colors } from '@/theme';
 import { formatMoney, formatPercent } from '@/utils/format';
 import { Plus } from 'lucide-react';
 import type { Holding, HoldingSummary } from '@/types';
+import type { EstimatedNavData } from '@/types';
 
 interface LeftPanelProps {
   holdings: Holding[];
   summaries: Record<string, HoldingSummary>;
+  estimatedNavs: Record<string, EstimatedNavData | null>;
   selectedCode: string | null;
   onSelect: (code: string) => void;
   onAddFund: () => void;
   onDelete?: (code: string) => void;
 }
 
-export function LeftPanel({ holdings, summaries, selectedCode, onSelect, onAddFund, onDelete }: LeftPanelProps) {
+export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, onSelect, onAddFund, onDelete }: LeftPanelProps) {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -71,7 +73,9 @@ export function LeftPanel({ holdings, summaries, selectedCode, onSelect, onAddFu
             }
 
             const isSelected = selectedCode === holding.code;
-            const todayChange = summary.todayChange;
+            const estNav = estimatedNavs[holding.code];
+            const hasEstNav = estNav !== null && estNav !== undefined;
+            const todayChange = hasEstNav ? estNav!.estimatedChange / 100 : summary.todayChange;
             const profitColor = summary.totalProfit >= 0 ? colors.profit : colors.loss;
             const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
             const sparklinePoints = summary.sparkline;
@@ -133,12 +137,12 @@ export function LeftPanel({ holdings, summaries, selectedCode, onSelect, onAddFu
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
+                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>{hasEstNav ? '估值' : '今日'}</div>
                           <div
                             className="text-xs font-semibold font-mono leading-5"
-                            style={{ color: todayColor }}
+                            style={{ color: hasEstNav ? todayColor : colors.textTertiary }}
                           >
-                            {formatPercent(todayChange)}
+                            {hasEstNav ? formatPercent(todayChange) : '--'}
                           </div>
                         </div>
                         <div className="text-right">

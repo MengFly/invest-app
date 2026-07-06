@@ -121,3 +121,43 @@
 - **Step 2**：任务 2 + 任务 4 — 均依赖任务 1，互相独立可并行
 - **Step 3**：任务 3a + 3b — 依赖任务 2，互相独立可并行；任务 5（NavChart 虚线绘制）— 无数据依赖可先行
 - **Step 4**：任务 5a + 5b — 依赖任务 4 和任务 5，互相独立可并行
+
+## Complements
+
+### 1. 估算净值接口服务 + 类型定义
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/types/index.ts` — 新增 `EstimatedNavData` 接口（7 字段）
+  - `src/services/fundApi.ts` — 新增 `fetchEstimatedNav(code)` JSONP 实现
+- **审查结果**：审查通过
+
+### 2. useEstimatedNav / useAllEstimatedNavs hooks
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/hooks/useEstimatedNav.ts` — 新增两个 hook（单基金 + 批量），支持 60 秒轮询
+- **审查结果**：审查通过
+
+### 3. 基金卡片展示估算涨跌幅
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/LeftPanel.tsx` — 新增 `estimatedNavs` prop，有数据时显示"估值"+涨跌幅，无数据时显示 `--`
+  - `src/DesktopApp.tsx` — 调用 `useAllEstimatedNavs` 并传递数据
+  - `src/MobileApp.tsx` — 移动端列表同样展示估算涨跌幅
+- **审查结果**：审查通过
+
+### 4. NavChart 估算净值虚线
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/chart/NavChart.tsx` — 新增 `estimatedNav`/`estimatedTime` props，绘制水平虚线 + 右侧端点 + 左侧标签
+- **审查结果**：审查通过
+
+### 5. RightPanel 和 MobileDetail 传入估算净值
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/RightPanel.tsx` — 调用 `useEstimatedNav`，传入 NavChart
+  - `src/MobileDetail.tsx` — 调用 `useEstimatedNav`，传入 NavChart
+- **审查结果**：审查通过
+
+### 完成总结
+- **完成时间**：2026-07-06
+- **全部 5 项需求均已通过审查，无遗留问题。**

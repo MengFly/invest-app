@@ -16,6 +16,8 @@ interface NavChartProps {
   height?: number;
   yLabels?: string[];
   xLabels?: string[];
+  estimatedNav?: number;
+  estimatedTime?: string;
 }
 
 function navToV(nav: number, min: number, max: number): number {
@@ -42,6 +44,8 @@ export function NavChart({
   height = 180,
   yLabels: yLabelsProp = ['2.50', '2.45', '2.40', '2.35', '2.30'],
   xLabels: xLabelsProp,
+  estimatedNav,
+  estimatedTime,
 }: NavChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -439,6 +443,18 @@ export function NavChart({
               stroke={colors.secondary} strokeWidth={1} strokeDasharray="4,3" />
             <text x={width - padRight} y={dataToY(cumulativeCostY) + 12} textAnchor="end" fill={colors.secondary} fontSize={9}>
               累计成本 {cumulativeCostY.toFixed(4)}
+            </text>
+          </>
+        )}
+
+        {/* 估算净值虚线 */}
+        {estimatedNav !== undefined && estimatedNav !== null && (
+          <>
+            <line x1={padLeft} y1={dataToY(estimatedNav)} x2={width - padRight} y2={dataToY(estimatedNav)}
+              stroke={colors.textTertiary} strokeWidth={1} strokeDasharray="2,3" />
+            <circle cx={width - padRight} cy={dataToY(estimatedNav)} r={3} fill={colors.textTertiary} opacity={0.6} />
+            <text x={padLeft} y={dataToY(estimatedNav) - 4} textAnchor="start" fill={colors.textTertiary} fontSize={9}>
+              估算 {estimatedNav.toFixed(4)}{estimatedTime ? ` (${estimatedTime.slice(5, 16)})` : ''}
             </text>
           </>
         )}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
+import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
 import { HeaderStats } from '@/components/HeaderStats';
 import { LeftPanel } from '@/components/LeftPanel';
 import { RightPanel } from '@/components/RightPanel';
@@ -14,6 +15,8 @@ export default function DesktopApp() {
   const { selectedFundCode, setSelectedFundCode, triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
+  const codes = holdings.map((h) => h.code);
+  const estimatedNavs = useAllEstimatedNavs(codes);
 
   const [addFundOpen, setAddFundOpen] = useState(false);
   const [supabaseConfigOpen, setSupabaseConfigOpen] = useState(false);
@@ -40,6 +43,7 @@ export default function DesktopApp() {
           <LeftPanel
             holdings={holdings}
             summaries={summaries}
+            estimatedNavs={estimatedNavs}
             selectedCode={selectedFundCode}
             onSelect={setSelectedFundCode}
             onAddFund={() => setAddFundOpen(true)}

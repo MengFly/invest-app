@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
+import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
 import { AddFundDialog } from '@/components/AddFundDialog';
 import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
@@ -25,6 +26,8 @@ function MobileList() {
   const { triggerRefresh, refreshTrigger } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
+  const codes = holdings.map((h) => h.code);
+  const estimatedNavs = useAllEstimatedNavs(codes);
 
   const [addFundOpen, setAddFundOpen] = useState(false);
   const [supabaseConfigOpen, setSupabaseConfigOpen] = useState(false);
@@ -120,7 +123,9 @@ function MobileList() {
               );
             }
 
-            const todayChange = summary.todayChange;
+            const estNav = estimatedNavs[holding.code];
+            const hasEstNav = estNav !== null && estNav !== undefined;
+            const todayChange = hasEstNav ? estNav!.estimatedChange / 100 : summary.todayChange;
             const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
 
             return (
@@ -159,9 +164,12 @@ function MobileList() {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-4">
                       <div>
-                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
-                        <div className="text-xs font-semibold font-mono leading-5" style={{ color: todayColor }}>
-                          {formatPercent(todayChange)}
+                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>{hasEstNav ? '估值' : '今日'}</div>
+                        <div
+                          className="text-xs font-semibold font-mono leading-5"
+                          style={{ color: hasEstNav ? todayColor : colors.textTertiary }}
+                        >
+                          {hasEstNav ? formatPercent(todayChange) : '--'}
                         </div>
                       </div>
                       <div>

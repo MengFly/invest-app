@@ -113,3 +113,15 @@ export interface NetWorthRecord {
   netWorth: number;
   netWorthChange: number;
 }
+
+// ===== 天天基金估算净值接口响应 =====
+
+export interface EstimatedNavData {
+  fundCode: string;
+  name: string;
+  navDate: string;           // jzrq - 最新公布净值日期
+  nav: number;               // dwjz - 最新公布单位净值
+  estimatedNav: number;      // gsz - 估算净值
+  estimatedChange: number;   // gszzl - 估算涨跌幅（百分比）
+  estimatedTime: string;     // gztime - 估算时间
+}
