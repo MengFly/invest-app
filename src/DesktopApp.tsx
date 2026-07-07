@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
@@ -35,6 +35,14 @@ export default function DesktopApp() {
   }, [holdings, summaries, estimatedNavs]);
 
   const { user, loading: authLoading, signOut } = useAuth();
+
+  // 页面刷新后自动恢复云端存储模式（如果用户已登录）
+  useEffect(() => {
+    if (!authLoading && user) {
+      setStorageMode('cloud');
+    }
+  }, [user, authLoading]);
+
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [addFundOpen, setAddFundOpen] = useState(false);

@@ -43,6 +43,13 @@ function MobileList() {
 
   const { user, loading: authLoading, signOut } = useAuth();
 
+  // 页面刷新后自动恢复云端存储模式（如果用户已登录）
+  useEffect(() => {
+    if (!authLoading && user) {
+      setStorageMode('cloud');
+    }
+  }, [user, authLoading]);
+
   const handleRefresh = useCallback(() => triggerRefresh(), [triggerRefresh]);
 
   const handleLoginSuccess = useCallback(async () => {
