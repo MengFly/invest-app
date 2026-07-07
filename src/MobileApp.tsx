@@ -4,7 +4,7 @@ import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
 import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
-import { calcEstimatedProfit } from '@/utils/estimatedProfit';
+import { calcEstimatedProfit, calcTotalEstimatedProfit } from '@/utils/estimatedProfit';
 import { AddFundDialog } from '@/components/AddFundDialog';
 import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
@@ -41,8 +41,21 @@ function MobileList() {
   const totalAssets = summaryList.reduce((s, x) => s + x.holdAmount, 0);
   const totalProfit = summaryList.reduce((s, x) => s + x.totalProfit, 0);
   const totalInvested = summaryList.reduce((s, x) => s + x.totalInvested, 0);
-  const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
-  const profitColor = totalProfit >= 0 ? colors.profit : colors.loss;
+
+  const totalEstimatedProfit = useMemo(() => {
+    const items = holdings
+      .map((h) => ({
+        holdAmount: summaries[h.code]?.holdAmount ?? 0,
+        estimatedChange: estimatedNavs[h.code]?.estimatedChange ?? 0,
+        estimatedTime: estimatedNavs[h.code]?.estimatedTime ?? '',
+      }))
+      .filter((item) => item.estimatedTime);
+    return items.length > 0 ? calcTotalEstimatedProfit(items) : null;
+  }, [holdings, summaries, estimatedNavs]);
+
+  const estProfitRate = totalEstimatedProfit !== null && totalAssets > 0
+    ? totalEstimatedProfit / totalAssets
+    : null;
 
   const deleteFund = deleteCode ? holdings.find((h) => h.code === deleteCode) : null;
 
@@ -87,23 +100,28 @@ function MobileList() {
             >
               ¥{totalAssets.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            {summaryList.length > 0 && (
-              <span className="text-[10px] font-mono font-semibold" style={{ color: profitColor }}>
-                {totalProfit >= 0 ? '+' : ''}{formatMoney(totalProfit)} ({formatPercent(totalProfitRate)})
-              </span>
+            {totalEstimatedProfit !== null ? (
+              <>
+                <span className="text-sm font-semibold font-mono leading-none" style={{ color: totalEstimatedProfit >= 0 ? colors.profit : colors.loss }}>
+                  {formatMoney(totalEstimatedProfit, true)}
+                </span>
+                <span className="text-[10px] font-mono leading-none" style={{ color: totalEstimatedProfit >= 0 ? colors.profit : colors.loss }}>
+                  ({formatPercent(estProfitRate!)})
+                </span>
+              </>
+            ) : (
+              <span className="text-[10px] font-mono" style={{ color: colors.textTertiary }}>--</span>
             )}
           </div>
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between mt-1">
             <span className="text-[10px]" style={{ color: colors.textTertiary }}>
               {summaryList.length > 0
                 ? `累计收益: ${totalProfit >= 0 ? '+' : ''}${formatMoney(totalProfit)}`
                 : '暂无持仓'}
             </span>
-            {summaryList.length > 0 && (
-              <span className="text-[10px]" style={{ color: colors.textTertiary }}>
-                共 {holdings.length} 只
-              </span>
-            )}
+            <span className="text-[10px]" style={{ color: colors.textTertiary }}>
+              共 {holdings.length} 只
+            </span>
           </div>
         </div>
       </div>
@@ -126,7 +144,12 @@ function MobileList() {
             }
 
             const todayChange = summary.todayChange;
-            const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const estNav = estimatedNavs[holding.code];
+            const hasEstimate = estNav && estNav.estimatedTime?.slice(0, 10) === todayStr;
+            const displayChange = hasEstimate ? (estNav!.estimatedChange / 100) : todayChange;
+            const displayLabel = hasEstimate ? '今日' : (summary.navDate ? summary.navDate.slice(5) : '昨收');
+            const displayColor = displayChange >= 0 ? colors.profit : colors.loss;
 
             return (
               <button
@@ -164,21 +187,20 @@ function MobileList() {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-4">
                       <div>
-                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
-                        <div className="text-xs font-semibold font-mono leading-5" style={{ color: todayColor }}>
-                          {formatPercent(todayChange)}
+                        <div className="text-[10px]" style={{ color: colors.textTertiary }}>{displayLabel}</div>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-semibold font-mono leading-5" style={{ color: displayColor }}>
+                            {formatPercent(displayChange)}
+                          </span>
+                          {hasEstimate && (() => {
+                            const ep = calcEstimatedProfit(summary.holdAmount, estNav!.estimatedChange, estNav!.estimatedTime);
+                            return ep !== null ? (
+                              <span className="text-[10px] font-mono leading-5" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                                {formatMoney(ep, true)}
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
-                        {(() => {
-                          const estNav = estimatedNavs[holding.code];
-                          const ep = estNav
-                            ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
-                            : null;
-                          return ep !== null ? (
-                            <div className="text-[10px] font-mono leading-4" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
-                              {formatMoney(ep, true)}
-                            </div>
-                          ) : null;
-                        })()}
                       </div>
                       <div>
                         <div className="text-[10px]" style={{ color: colors.textTertiary }}>收益</div>

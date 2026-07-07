@@ -34,8 +34,6 @@ export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }
     : 0;
   const annualized = avgHoldDays > 0 ? (1 + totalProfitRate) ** (365 / avgHoldDays) - 1 : 0;
 
-  const profitColor = totalProfit >= 0 ? colors.profit : colors.loss;
-
   const handleExport = () => {
     const data = exportData();
     downloadJson(data);
@@ -79,14 +77,17 @@ export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }
           />
 
           <MetricBlock
-            label="累计收益"
+            label="今日总收益"
             value={
-              totalProfit >= 0
-                ? `+¥${totalProfit.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : `-¥${Math.abs(totalProfit).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              estimatedProfit !== undefined && estimatedProfit !== null
+                ? formatMoney(estimatedProfit, true)
+                : '--'
             }
-            valueColor={profitColor}
-            badge={formatPercent(totalProfitRate)}
+            valueColor={
+              estimatedProfit !== undefined && estimatedProfit !== null
+                ? (estimatedProfit >= 0 ? colors.profit : colors.loss)
+                : colors.textTertiary
+            }
           />
 
           <MetricBlock
@@ -105,14 +106,6 @@ export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }
             value={formatPercent(annualized)}
             valueColor={annualized >= 0 ? colors.profit : colors.loss}
           />
-
-          {estimatedProfit !== undefined && estimatedProfit !== null && (
-            <MetricBlock
-              label="今日预估收益"
-              value={formatMoney(estimatedProfit, true)}
-              valueColor={estimatedProfit >= 0 ? colors.profit : colors.loss}
-            />
-          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

@@ -75,8 +75,14 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
 
             const isSelected = selectedCode === holding.code;
             const todayChange = summary.todayChange;
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const estNav = estimatedNavs[holding.code];
+            const hasEstimate = estNav && estNav.estimatedTime?.slice(0, 10) === todayStr;
+            // 有实时估算时优先用估算涨跌幅，否则用最新公布的净值涨跌幅（可能来自前一交易日）
+            const displayChange = hasEstimate ? (estNav!.estimatedChange / 100) : todayChange;
+            const displayLabel = hasEstimate ? '今日' : (summary.navDate ? summary.navDate.slice(5) : '昨收');
             const profitColor = summary.totalProfit >= 0 ? colors.profit : colors.loss;
-            const todayColor = todayChange >= 0 ? colors.profit : colors.loss;
+            const displayColor = displayChange >= 0 ? colors.profit : colors.loss;
             const sparklinePoints = summary.sparkline;
             const hasSparkline = sparklinePoints.length >= 2;
 
@@ -136,24 +142,23 @@ export function LeftPanel({ holdings, summaries, estimatedNavs, selectedCode, on
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>今日</div>
-                          <div
-                            className="text-xs font-semibold font-mono leading-5"
-                            style={{ color: todayColor }}
-                          >
-                            {formatPercent(todayChange)}
+                          <div className="text-[10px]" style={{ color: colors.textTertiary }}>{displayLabel}</div>
+                          <div className="flex items-baseline gap-2 justify-end">
+                            <span
+                              className="text-xs font-semibold font-mono leading-5"
+                              style={{ color: displayColor }}
+                            >
+                              {formatPercent(displayChange)}
+                            </span>
+                            {hasEstimate && (() => {
+                              const ep = calcEstimatedProfit(summary.holdAmount, estNav!.estimatedChange, estNav!.estimatedTime);
+                              return ep !== null ? (
+                                <span className="text-[10px] font-mono leading-5" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
+                                  {formatMoney(ep, true)}
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
-                          {(() => {
-                            const estNav = estimatedNavs[holding.code];
-                            const ep = estNav
-                              ? calcEstimatedProfit(summary.holdAmount, estNav.estimatedChange, estNav.estimatedTime)
-                              : null;
-                            return ep !== null ? (
-                              <div className="text-[10px] font-mono leading-4" style={{ color: ep >= 0 ? colors.profit : colors.loss }}>
-                                {formatMoney(ep, true)}
-                              </div>
-                            ) : null;
-                          })()}
                         </div>
                         <div className="text-right">
                           <div className="text-[10px]" style={{ color: colors.textTertiary }}>收益</div>
