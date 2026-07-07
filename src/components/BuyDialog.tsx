@@ -62,10 +62,6 @@ export function BuyDialog({
       alert('请输入买入金额')
       return
     }
-    if (!navRecord) {
-      alert(`所选日期 ${selectedDate} 非交易日，请选择有净值数据的日期`)
-      return
-    }
     setSubmitting(true)
     try {
       const holdings = await getHoldings()
@@ -73,8 +69,9 @@ export function BuyDialog({
         alert('请先添加基金到持仓')
         return
       }
-      const shares = numAmount / dayNav
-      const feeNum = numAmount * buyFeeRate
+      const hasNav = navRecord && dayNav > 0
+      const shares = hasNav ? numAmount / dayNav : 0
+      const feeNum = hasNav ? numAmount * buyFeeRate : 0
       await addTransaction({
         fundCode,
         type: 'buy',
@@ -123,6 +120,11 @@ export function BuyDialog({
             >
               {dayNav > 0 ? dayNav.toFixed(4) : '--'}
             </div>
+            {!navRecord && (
+              <div className="text-[10px] mt-1" style={{ color: colors.loss }}>
+                净值待确认，提交后将自动补算
+              </div>
+            )}
           </div>
           <div className="w-px" style={{ backgroundColor: colors.border }} />
           <div className="flex-1">

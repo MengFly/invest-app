@@ -74,7 +74,7 @@ export function SellDialog({
   const estProfit = numShares > 0 && dayNav > 0 ? (dayNav - costNav) * numShares : 0
 
   const overSell = numShares > holdShares
-  const canSubmit = numShares > 0 && !overSell && dayNav > 0 && holdShares > 0 && !submitting && !!navRecord
+  const canSubmit = numShares > 0 && !overSell && holdShares > 0 && !submitting
 
   const percentages = [
     { label: '10%', ratio: 0.1 },
@@ -113,14 +113,6 @@ export function SellDialog({
       alert(`赎回份额不能超过持有份额 ${holdShares.toFixed(2)} 份`)
       return
     }
-    if (!navRecord) {
-      alert(`所选日期 ${selectedDate} 非交易日，请选择有净值数据的日期`)
-      return
-    }
-    if (dayNav <= 0) {
-      alert('当日净值数据未加载，请稍后重试')
-      return
-    }
     if (holdShares <= 0) {
       alert('当前无持有份额，无法赎回')
       return
@@ -132,13 +124,14 @@ export function SellDialog({
         alert('持仓不存在，可能已被删除')
         return
       }
+      const hasNav = navRecord && dayNav > 0
       await addTransaction({
         fundCode,
         type: 'sell',
         date: selectedDate,
-        amount: actual,
+        amount: hasNav ? actual : 0,
         shares: numShares,
-        fee,
+        fee: hasNav ? fee : 0,
         note: note.trim() || undefined,
       })
       resetForm()
@@ -246,7 +239,7 @@ export function SellDialog({
           </div>
           {!navRecord && selectedDate && (
             <div className="text-[11px] mt-1.5" style={{ color: colors.loss }}>
-              该日非交易日，无净值数据
+              净值待确认，提交后将自动补算
             </div>
           )}
         </div>

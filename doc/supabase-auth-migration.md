@@ -78,6 +78,12 @@
 
 将 Supabase 从「手动输入 URL + AnonKey」的模式改为「硬编码 URL/AnonKey + 用户邮箱密码登录」，适配已启用的 RLS 策略（持仓表 `fund_holdings`、交易表 `fund_transactions` 均含 `u_id` 字段，只能查询和修改自己的数据）。
 
+> **⚠️ 前提条件**：Supabase 表的 `u_id` 列必须有 `DEFAULT auth.uid()`，否则 RLS 策略会拒绝写入（插入时 `u_id` 为 NULL，RLS 检查 `auth.uid() = u_id` 永远为 false）。
+> ```sql
+> ALTER TABLE fund_transactions ALTER COLUMN u_id SET DEFAULT auth.uid();
+> ALTER TABLE fund_holdings ALTER COLUMN u_id SET DEFAULT auth.uid();
+> ```
+
 ## 2. 需求澄清记录
 
 | 问题 | 确认结果 |

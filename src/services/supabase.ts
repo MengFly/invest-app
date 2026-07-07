@@ -307,7 +307,7 @@ export async function addTransaction(tx: Transaction): Promise<void> {
  */
 export async function updateTransactionCloud(
   id: string,
-  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note'>>
+  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note' >>
 ): Promise<void> {
   const client = getClient();
   const { error: err } = await client.from('fund_transactions').update(updates).eq('id', id);

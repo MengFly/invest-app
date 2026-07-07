@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
@@ -28,9 +28,10 @@ export default function MobileApp() {
 
 function MobileList() {
   const navigate = useNavigate();
-  const { triggerRefresh, refreshTrigger } = useAppStore();
+  const { triggerRefresh, refreshTrigger, mobileListScrollTop, setMobileListScrollTop } = useAppStore();
   const { holdings } = useHoldings(refreshTrigger);
   const { summaries } = useAllSummaries(refreshTrigger);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const codes = useMemo(() => holdings.map((h) => h.code), [holdings]);
   const estimatedNavs = useAllEstimatedNavs(codes);
@@ -65,6 +66,18 @@ function MobileList() {
     setLogoutConfirmOpen(false);
     handleRefresh();
   }, [signOut, handleRefresh]);
+
+  // 返回时恢复滚动位置（等列表数据加载完成后再恢复）
+  useEffect(() => {
+    const hasData = holdings.length > 0 && Object.keys(summaries).length >= holdings.length;
+    if (scrollRef.current && mobileListScrollTop > 0 && hasData) {
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTop = mobileListScrollTop;
+        }
+      });
+    }
+  }, [mobileListScrollTop, holdings.length, summaries]);
 
   const summaryList = Object.values(summaries);
   const totalAssets = summaryList.reduce((s, x) => s + x.holdAmount, 0);
@@ -171,7 +184,7 @@ function MobileList() {
       </div>
 
       {/* 基金列表 */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 scroll-smooth">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 pb-4 scroll-smooth">
         <div className="flex flex-col gap-2">
           {holdings.map((holding) => {
             const summary = summaries[holding.code];
@@ -200,7 +213,10 @@ function MobileList() {
                 key={holding.code}
                 type="button"
                 className="w-full cursor-pointer text-left outline-none"
-                onClick={() => navigate(`/mobile/${holding.code}`)}
+                onClick={() => {
+                  setMobileListScrollTop(scrollRef.current?.scrollTop ?? 0);
+                  navigate(`/mobile/${holding.code}`);
+                }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setDeleteCode(holding.code);

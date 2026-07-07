@@ -14,6 +14,8 @@ interface AppState {
   setSelectedFundCode: (code: string | null) => void;
   refreshTrigger: number;
   triggerRefresh: () => void;
+  mobileListScrollTop: number;
+  setMobileListScrollTop: (top: number) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -21,6 +23,7 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedFundCode, setSelectedFundCode] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [mobileListScrollTop, setMobileListScrollTop] = useState(0);
 
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger((prev) => prev + 1);
@@ -32,8 +35,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSelectedFundCode,
       refreshTrigger,
       triggerRefresh,
+      mobileListScrollTop,
+      setMobileListScrollTop,
     }),
-    [selectedFundCode, refreshTrigger, triggerRefresh],
+    [selectedFundCode, refreshTrigger, triggerRefresh, mobileListScrollTop],
   );
 
   return createElement(AppContext.Provider, { value }, children);

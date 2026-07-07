@@ -1,5 +1,8 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
 import { useNavigate } from 'react-router-dom';
+import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
+import { isPendingTx } from '@/utils/transactionUtils';
 import { colors } from '@/theme';
 import { formatPercent } from '@/utils/format';
 import { findNavByDate } from '@/utils/navUtils';
@@ -80,7 +83,7 @@ interface MobileDetailProps {
 
 export default function MobileDetail({ code }: MobileDetailProps) {
   const navigate = useNavigate();
-  const [range, setRange] = useState<RangeKey>('1y');
+  const [range, setRange] = usePersistedState<RangeKey>('mobile-detail:range', '1y');
 
   const [buyOpen, setBuyOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
@@ -88,11 +91,11 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
   const [navSettingsOpen, setNavSettingsOpen] = useState(false);
-  const [showHoldingCostLine, setShowHoldingCostLine] = useState(true);
-  const [showCumulativeCostLine, setShowCumulativeCostLine] = useState(true);
-  const [showHoldingCostPolyline, setShowHoldingCostPolyline] = useState(false);
-  const [showCumulativeCostPolyline, setShowCumulativeCostPolyline] = useState(false);
-  const [showTxDots, setShowTxDots] = useState(true);
+  const [showHoldingCostLine, setShowHoldingCostLine] = usePersistedState('mobile-detail:showHoldingCostLine', true);
+  const [showCumulativeCostLine, setShowCumulativeCostLine] = usePersistedState('mobile-detail:showCumulativeCostLine', true);
+  const [showHoldingCostPolyline, setShowHoldingCostPolyline] = usePersistedState('mobile-detail:showHoldingCostPolyline', false);
+  const [showCumulativeCostPolyline, setShowCumulativeCostPolyline] = usePersistedState('mobile-detail:showCumulativeCostPolyline', false);
+  const [showTxDots, setShowTxDots] = usePersistedState('mobile-detail:showTxDots', true);
 
   const { triggerRefresh } = useAppStore();
   const { summary, loading: detailLoading, refresh: refreshDetail } = useHoldingDetail(code);
@@ -100,6 +103,15 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   const { data: transactions, refresh: refreshTx } = useTransactions(code);
   const { data: basicInfo } = useFundBasicInfo(code);
   const { data: estimatedNavData } = useEstimatedNav(code);
+
+  // 净值数据加载后，自动补全待确认交易
+  useEffect(() => {
+    if (netWorths && netWorths.length > 0) {
+      resolveWithNetWorths(code, netWorths).then((n) => {
+        if (n > 0) { refreshDetail(); refreshTx(); }
+      });
+    }
+  }, [code, netWorths?.length]);
 
   const handleTransactionSuccess = useCallback(() => {
     refreshDetail();
@@ -431,14 +443,17 @@ export default function MobileDetail({ code }: MobileDetailProps) {
                     key={tx.id}
                     className="flex items-center px-4 py-2.5 transition-colors hover:bg-gray-50 cursor-pointer"
                     onClick={() => setEditTx(tx)}
-                    style={
-                      i < sortedTransactions.length - 1
-                        ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
-                        : undefined
-                    }
+                    style={{
+                      opacity: isPendingTx(tx) ? 0.6 : 1,
+                      ...(i < sortedTransactions.length - 1 ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight } : {}),
+                    }}
+                    title={isPendingTx(tx) ? '净值待确认，确认后将自动更新' : undefined}
                   >
                     <span className="flex-1 text-[11px] font-mono shrink-0" style={{ color: colors.textPrimary }}>
                       {formatMD(tx.date)}
+                      {isPendingTx(tx) && (
+                        <span className="ml-1 text-[8px] font-semibold" style={{ color: colors.loss }}>待确认</span>
+                      )}
                     </span>
                     <span className="w-[36px] text-center text-[10px] font-semibold shrink-0" style={{ color: typeColor }}>
                       {typeText}

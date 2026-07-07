@@ -1,4 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
+import { isPendingTx } from '@/utils/transactionUtils';
 import { colors } from '@/theme';
 import { formatPercent } from '@/utils/format';
 import { findNavByDate } from '@/utils/navUtils';
@@ -79,7 +82,7 @@ interface RightPanelProps {
 }
 
 export function RightPanel({ code }: RightPanelProps) {
-  const [range, setRange] = useState<RangeKey>('1y');
+  const [range, setRange] = usePersistedState<RangeKey>('right-panel:range', '1y');
 
   const [buyOpen, setBuyOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
@@ -89,11 +92,11 @@ export function RightPanel({ code }: RightPanelProps) {
 
   // 净值走势曲线设置
   const [navSettingsOpen, setNavSettingsOpen] = useState(false);
-  const [showHoldingCostLine, setShowHoldingCostLine] = useState(true);
-  const [showCumulativeCostLine, setShowCumulativeCostLine] = useState(true);
-  const [showHoldingCostPolyline, setShowHoldingCostPolyline] = useState(false);
-  const [showCumulativeCostPolyline, setShowCumulativeCostPolyline] = useState(false);
-  const [showTxDots, setShowTxDots] = useState(true);
+  const [showHoldingCostLine, setShowHoldingCostLine] = usePersistedState('right-panel:showHoldingCostLine', true);
+  const [showCumulativeCostLine, setShowCumulativeCostLine] = usePersistedState('right-panel:showCumulativeCostLine', true);
+  const [showHoldingCostPolyline, setShowHoldingCostPolyline] = usePersistedState('right-panel:showHoldingCostPolyline', false);
+  const [showCumulativeCostPolyline, setShowCumulativeCostPolyline] = usePersistedState('right-panel:showCumulativeCostPolyline', false);
+  const [showTxDots, setShowTxDots] = usePersistedState('right-panel:showTxDots', true);
 
   const { triggerRefresh } = useAppStore();
   const { summary, loading: detailLoading, refresh: refreshDetail } = useHoldingDetail(code ?? undefined);
@@ -101,6 +104,15 @@ export function RightPanel({ code }: RightPanelProps) {
   const { data: transactions, refresh: refreshTx } = useTransactions(code ?? undefined);
   const { data: basicInfo } = useFundBasicInfo(code ?? undefined);
   const { data: estimatedNavData } = useEstimatedNav(code ?? undefined);
+
+  // 净值数据加载后，自动补全待确认交易
+  useEffect(() => {
+    if (code && netWorths && netWorths.length > 0) {
+      resolveWithNetWorths(code, netWorths).then((n) => {
+        if (n > 0) { refreshDetail(); refreshTx(); }
+      });
+    }
+  }, [code, netWorths?.length]);
 
   const handleTransactionSuccess = useCallback(() => {
     refreshDetail();
@@ -469,14 +481,17 @@ export function RightPanel({ code }: RightPanelProps) {
                           key={tx.id}
                           className="flex items-center px-4 py-2.5 transition-colors hover:bg-gray-50 cursor-pointer"
                           onClick={() => setEditTx(tx)}
-                          style={
-                            i < sortedTransactions.length - 1
-                              ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
-                              : undefined
-                          }
+                          style={{
+                            opacity: isPendingTx(tx) ? 0.6 : 1,
+                            ...(i < sortedTransactions.length - 1 ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight } : {}),
+                          }}
+                          title={isPendingTx(tx) ? '净值待确认，确认后将自动更新' : undefined}
                         >
                           <span className="flex-1 text-[12px] font-mono shrink-0" style={{ color: colors.textPrimary }}>
                             {formatMD(tx.date)}
+                            {isPendingTx(tx) && (
+                              <span className="ml-1 text-[9px] font-semibold" style={{ color: colors.loss }}>待确认</span>
+                            )}
                           </span>
                           <span className="w-[44px] text-center text-[11px] font-semibold shrink-0" style={{ color: typeColor }}>
                             {typeText}

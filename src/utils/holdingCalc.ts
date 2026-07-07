@@ -1,3 +1,4 @@
+import { isPendingTx } from '@/utils/transactionUtils';
 import type { Holding, Transaction, NetWorthRecord, HoldingSummary } from '@/types';
 
 /**
@@ -16,6 +17,7 @@ export function summarizeHolding(
   let totalBuyShares = 0;
   let totalDividend = 0;
   for (const t of transactions) {
+    if (isPendingTx(t)) continue;
     if (t.type === 'buy') {
       holdShares += t.shares;
       totalInvested += t.amount;

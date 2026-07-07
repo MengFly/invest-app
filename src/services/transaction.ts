@@ -134,7 +134,7 @@ export async function removeTransaction(id: string): Promise<void> {
 
 export async function updateTransaction(
   id: string,
-  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note'>>
+  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note' >>
 ): Promise<void> {
   if (getStorageMode() === 'cloud') {
     await updateTransactionCloud(id, updates);
