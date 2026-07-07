@@ -1,61 +1,62 @@
 // Supabase 云存储服务 - 管理持仓与交易记录的云端持久化
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Holding, Transaction } from '@/types';
 
-// localStorage 存储键
-const CONFIG_KEY = 'supabase:config';
-const MODE_KEY = 'storage:mode';
+// ===== 硬编码 Supabase 配置（配合 RLS，用户数据由 auth.uid() 隔离） =====
+const SUPABASE_URL = 'https://narvehoftoihiqukgrsf.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_Nnu4Qr76vvZ1wuVkbvhuqw_oQNK-9e1';
 
-export interface SupabaseConfig {
-  url: string;
-  key: string;
+let client: SupabaseClient | null = null;
+
+/**
+ * 获取 Supabase 客户端实例（单例，启用 Session 持久化）
+ * 用户登录后 SDK 自动附加 JWT，所有请求通过 RLS 按 auth.uid() 过滤
+ */
+export function getClient(): SupabaseClient {
+  if (!client) {
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
+  }
+  return client;
 }
+
+// 云缓存键前缀
+const CACHE_PREFIX = 'supabase:cache:';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时（仅在写入操作时清除缓存）
+
+// 运行时存储模式（不再持久化到 localStorage，由登录状态决定）
+let currentMode: StorageMode = 'local';
 
 export type StorageMode = 'local' | 'cloud';
-
-/**
- * 获取存储的 Supabase 配置
- */
-export function getSupabaseConfig(): SupabaseConfig | null {
-  try {
-    const raw = localStorage.getItem(CONFIG_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as SupabaseConfig;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 保存 Supabase 配置到 localStorage
- */
-export function saveSupabaseConfig(config: SupabaseConfig): void {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-}
-
-/**
- * 清除 Supabase 配置
- */
-export function clearSupabaseConfig(): void {
-  localStorage.removeItem(CONFIG_KEY);
-}
 
 /**
  * 获取当前存储模式
  */
 export function getStorageMode(): StorageMode {
-  try {
-    const raw = localStorage.getItem(MODE_KEY);
-    if (raw === 'cloud' || raw === 'local') return raw;
-  } catch {}
-  return 'local';
+  return currentMode;
 }
 
 /**
  * 设置存储模式
  */
 export function setStorageMode(mode: StorageMode): void {
-  localStorage.setItem(MODE_KEY, mode);
+  currentMode = mode;
+}
+
+/**
+ * 清理旧版 localStorage 配置项（升级后的一次性清理）
+ */
+export function clearOldConfig(): void {
+  try {
+    localStorage.removeItem('supabase:config');
+    localStorage.removeItem('storage:mode');
+  } catch {
+    // 清理失败不影响使用
+  }
 }
 
 /**
@@ -76,8 +77,7 @@ export async function syncLocalToCloud(): Promise<void> {
   const mergedHoldings = new Map<string, { code: string; name: string; addedAt: number; order: number }>();
   // 先加入云端数据
   const cloudOrderMap = new Map<string, number>();
-  const { client } = createClientFromConfig();
-  if (!client) throw new Error('Supabase 未配置');
+  const client = getClient();
   const { data: cloudData } = await client.from('fund_holdings').select('*');
   for (const h of (cloudData ?? [])) {
     mergedHoldings.set(h.code, h);
@@ -128,40 +128,8 @@ export async function syncLocalToCloud(): Promise<void> {
   }
 }
 
-/**
- * 测试 Supabase 连接有效性
- */
-export async function testConnection(config: SupabaseConfig): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const supabase = createClient(config.url, config.key, { auth: { persistSession: false } });
-    const { error } = await supabase.from('fund_holdings').select('code', { count: 'exact', head: true });
-    if (error) {
-      return { ok: false, error: error.message };
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : '连接失败' };
-  }
-}
-
-/**
- * 创建 Supabase 客户端实例（使用已存储的配置）
- */
-function createClientFromConfig(): { client: any; error?: string } {
-  const config = getSupabaseConfig();
-  if (!config) return { client: null, error: '未配置 Supabase 连接信息' };
-  try {
-    const client = createClient(config.url, config.key, { auth: { persistSession: false } });
-    return { client };
-  } catch (e) {
-    return { client: null, error: e instanceof Error ? e.message : '创建客户端失败' };
-  }
-}
 
 // ==================== 缓存辅助 ====================
-
-const CACHE_PREFIX = 'supabase:cache:';
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时（仅在写入操作时清除缓存）
 
 function getCache<T>(key: string): T | null {
   try {
@@ -211,8 +179,7 @@ export async function fetchHoldings(): Promise<Holding[]> {
   const cached = getCache<Holding[]>('holdings');
   if (cached) return cached;
 
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { data, error: err } = await client
     .from('fund_holdings')
     .select('*')
@@ -234,8 +201,7 @@ export async function fetchOrder(): Promise<string[]> {
   const cached = getCache<string[]>('order');
   if (cached) return cached;
 
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { data, error: err } = await client
     .from('fund_holdings')
     .select('code, order')
@@ -250,8 +216,7 @@ export async function fetchOrder(): Promise<string[]> {
  * 添加持仓
  */
 export async function addHolding(holding: Holding, sortOrder: number): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { error: err } = await client
     .from('fund_holdings')
     .insert({ code: holding.code, name: holding.name, addedAt: holding.addedAt, order: sortOrder });
@@ -264,8 +229,7 @@ export async function addHolding(holding: Holding, sortOrder: number): Promise<v
  * 删除持仓（级联删除交易记录）
  */
 export async function removeHolding(code: string): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   try {
     // 先删交易记录
     await client.from('fund_transactions').delete().eq('fundCode', code);
@@ -283,8 +247,7 @@ export async function removeHolding(code: string): Promise<void> {
  * 更新持仓排序
  */
 export async function updateOrder(orderedCodes: string[]): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const updates = orderedCodes.map((code, index) => ({
     code,
     order: index,
@@ -307,8 +270,7 @@ export async function fetchTransactions(fundCode?: string): Promise<Transaction[
   const cached = getCache<Transaction[]>(cacheKey);
   if (cached) return cached;
 
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   let query = client.from('fund_transactions').select('*').order('createdAt', { ascending: false });
   if (fundCode) {
     query = query.eq('fundCode', fundCode);
@@ -334,8 +296,7 @@ export async function fetchTransactions(fundCode?: string): Promise<Transaction[
  * 新增交易记录
  */
 export async function addTransaction(tx: Transaction): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { error: err } = await client.from('fund_transactions').insert(tx);
   if (err) throw new Error(err.message);
   clearCache('transactions');
@@ -348,8 +309,7 @@ export async function updateTransactionCloud(
   id: string,
   updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note'>>
 ): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { error: err } = await client.from('fund_transactions').update(updates).eq('id', id);
   if (err) throw new Error(err.message);
   clearCache('transactions');
@@ -359,8 +319,7 @@ export async function updateTransactionCloud(
  * 删除交易记录
  */
 export async function removeTransactionCloud(id: string): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { error: err } = await client.from('fund_transactions').delete().eq('id', id);
   if (err) throw new Error(err.message);
   clearCache('transactions');
@@ -370,8 +329,7 @@ export async function removeTransactionCloud(id: string): Promise<void> {
  * 清空某基金的全部云端交易记录
  */
 export async function clearCloudTransactionsByFund(fundCode: string): Promise<void> {
-  const { client, error } = createClientFromConfig();
-  if (!client) throw new Error(error);
+  const client = getClient();
   const { error: err } = await client.from('fund_transactions').delete().eq('fundCode', fundCode);
   if (err) throw new Error(err.message);
   clearCache('transactions');

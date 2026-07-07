@@ -3,16 +3,20 @@ import { colors } from '@/theme';
 import { formatMoney, formatPercent } from '@/utils/format';
 import { exportData, downloadJson, parseImportFile, importData } from '@/services/dataMigration';
 import { useAppStore } from '@/hooks/useAppStore';
-import { Download, Upload, Cloud } from 'lucide-react';
+import { Download, Upload, LogIn, LogOut } from 'lucide-react';
 import type { HoldingSummary } from '@/types';
+import type { User } from '@supabase/supabase-js';
 
 interface HeaderStatsProps {
   summaries: Record<string, HoldingSummary>;
-  onOpenSupabaseConfig?: () => void;
   estimatedProfit?: number | null;
+  user?: User | null;
+  authLoading?: boolean;
+  onLogin?: () => void;
+  onLogout?: () => void;
 }
 
-export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }: HeaderStatsProps) {
+export function HeaderStats({ summaries, estimatedProfit, user, authLoading, onLogin, onLogout }: HeaderStatsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { triggerRefresh } = useAppStore();
 
@@ -125,15 +129,28 @@ export function HeaderStats({ summaries, onOpenSupabaseConfig, estimatedProfit }
             <Download size={13} strokeWidth={1.5} />
             导出
           </button>
-          {onOpenSupabaseConfig && (
+          {authLoading ? (
+            <span className="text-[10px]" style={{ color: colors.textTertiary }}>...</span>
+          ) : user ? (
             <button
               type="button"
               className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 hover:opacity-70 active:scale-[0.97]"
               style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-              onClick={onOpenSupabaseConfig}
+              onClick={onLogout}
+              title={user.email ?? ''}
             >
-              <Cloud size={13} strokeWidth={1.5} />
-              同步
+              <LogOut size={13} strokeWidth={1.5} />
+              {(user.email ?? '').split('@')[0]}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 hover:opacity-70 active:scale-[0.97]"
+              style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+              onClick={onLogin}
+            >
+              <LogIn size={13} strokeWidth={1.5} />
+              登录
             </button>
           )}
           <button

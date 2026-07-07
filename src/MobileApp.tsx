@@ -1,14 +1,18 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/hooks/useAppStore';
 import { useHoldings } from '@/hooks/usePortfolio';
 import { useAllSummaries } from '@/hooks/useAllSummaries';
 import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
 import { calcEstimatedProfit, calcTotalEstimatedProfit } from '@/utils/estimatedProfit';
+import { useAuth } from '@/hooks/useAuth';
+import { setStorageMode, syncLocalToCloud, clearOldConfig } from '@/services/supabase';
 import { AddFundDialog } from '@/components/AddFundDialog';
-import { SupabaseConfigDialog } from '@/components/SupabaseConfigDialog';
+import { AuthDialog } from '@/components/AuthDialog';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 import { colors } from '@/theme';
+import { LogIn, LogOut } from 'lucide-react';
 import { formatMoney, formatPercent } from '@/utils/format';
 import MobileDetail from './MobileDetail';
 
@@ -32,15 +36,39 @@ function MobileList() {
   const estimatedNavs = useAllEstimatedNavs(codes);
 
   const [addFundOpen, setAddFundOpen] = useState(false);
-  const [supabaseConfigOpen, setSupabaseConfigOpen] = useState(false);
   const [deleteCode, setDeleteCode] = useState<string | null>(null);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
-  const handleRefresh = () => triggerRefresh();
+  const { user, loading: authLoading, signOut } = useAuth();
+
+  const handleRefresh = useCallback(() => triggerRefresh(), [triggerRefresh]);
+
+  const handleLoginSuccess = useCallback(async () => {
+    setStorageMode('cloud');
+    try {
+      await syncLocalToCloud();
+      clearOldConfig();
+    } catch {
+      // 同步失败不影响使用
+    }
+    handleRefresh();
+  }, [handleRefresh]);
+
+  const handleLogout = useCallback(() => {
+    setLogoutConfirmOpen(true);
+  }, []);
+
+  const handleLogoutConfirm = useCallback(async () => {
+    await signOut();
+    setStorageMode('local');
+    setLogoutConfirmOpen(false);
+    handleRefresh();
+  }, [signOut, handleRefresh]);
 
   const summaryList = Object.values(summaries);
   const totalAssets = summaryList.reduce((s, x) => s + x.holdAmount, 0);
   const totalProfit = summaryList.reduce((s, x) => s + x.totalProfit, 0);
-  const totalInvested = summaryList.reduce((s, x) => s + x.totalInvested, 0);
 
   const totalEstimatedProfit = useMemo(() => {
     const items = holdings
@@ -75,14 +103,30 @@ function MobileList() {
               总资产
             </span>
             <div className="flex gap-2">
-              <button
-                type="button"
-                className="rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
-                style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-                onClick={() => setSupabaseConfigOpen(true)}
-              >
-                同步
-              </button>
+              {authLoading ? (
+                <span className="text-[10px]" style={{ color: colors.textTertiary }}>...</span>
+              ) : user ? (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                  style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+                  onClick={handleLogout}
+                  title={user.email ?? ''}
+                >
+                  <LogOut size={11} strokeWidth={1.5} />
+                  {(user.email ?? '').split('@')[0]}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                  style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+                  onClick={() => setAuthDialogOpen(true)}
+                >
+                  <LogIn size={11} strokeWidth={1.5} />
+                  登录
+                </button>
+              )}
               <button
                 type="button"
                 className="rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
@@ -239,10 +283,18 @@ function MobileList() {
         onOpenChange={setAddFundOpen}
         onSuccess={handleRefresh}
       />
-      <SupabaseConfigDialog
-        open={supabaseConfigOpen}
-        onOpenChange={setSupabaseConfigOpen}
-        onConfigChange={handleRefresh}
+      <AuthDialog
+        open={authDialogOpen}
+        onOpenChange={setAuthDialogOpen}
+        onLoginSuccess={handleLoginSuccess}
+      />
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        title="退出登录"
+        message="确定要退出登录吗？退出后将切回本地存储模式。"
+        confirmText="确认退出"
+        onConfirm={handleLogoutConfirm}
       />
       {deleteFund && (
         <DeleteConfirmDialog
