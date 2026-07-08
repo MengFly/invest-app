@@ -39,8 +39,6 @@ export function summarizeHolding(
   const prevNav = prevRecord ? prevRecord.netWorth : latestNav;
 
   const holdAmount = holdShares * latestNav;
-  const totalProfit = holdAmount - totalInvested + totalDividend - totalManagementFee;
-  const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
 
   // 管理费计算
   let totalManagementFee = 0;
@@ -57,6 +55,9 @@ export function summarizeHolding(
     }
     totalManagementFee = holdAmount * annualMgmtFeeRate / 365 * holdDays;
   }
+
+  const totalProfit = holdAmount - totalInvested + totalDividend - totalManagementFee;
+  const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
 
   // 持仓收益（未实现）：持有市值 - 加权平均买入成本
   const avgCostPerShare = totalBuyShares > 0 ? totalBuyCost / totalBuyShares : 0;

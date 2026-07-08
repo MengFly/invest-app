@@ -15,6 +15,7 @@ import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
 import { BuyDialog } from '@/components/BuyDialog';
 import { SellDialog } from '@/components/SellDialog';
+import { DividendDialog } from '@/components/DividendDialog';
 import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { FundInfoDialog } from '@/components/FundInfoDialog';
 import { calcDailyProfits } from '@/utils/profitChartCalc';
@@ -87,6 +88,7 @@ export default function MobileDetail({ code }: MobileDetailProps) {
 
   const [buyOpen, setBuyOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
+  const [dividendOpen, setDividendOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
@@ -195,6 +197,14 @@ export default function MobileDetail({ code }: MobileDetailProps) {
             onClick={() => setSellOpen(true)}
           >
             减仓
+          </button>
+          <button
+            type="button"
+            className="rounded-full px-2.5 py-1 text-[10px] font-semibold cursor-pointer active:scale-[0.97]"
+            style={{ backgroundColor: '#F0FDF4', color: '#16A34A' }}
+            onClick={() => setDividendOpen(true)}
+          >
+            分红
           </button>
         </div>
       </div>
@@ -435,9 +445,10 @@ export default function MobileDetail({ code }: MobileDetailProps) {
                 const change = navRec ? navRec.netWorthChange / 100 : 0;
                 const changeColor = change >= 0 ? colors.primary : colors.loss;
                 const isBuy = tx.type === 'buy';
-                const typeColor = isBuy ? colors.profit : colors.loss;
-                const typeText = isBuy ? '买入' : '卖出';
-                const sign = isBuy ? '+' : '-';
+                const isDividend = tx.type === 'dividend';
+                const typeColor = isDividend ? '#16A34A' : (isBuy ? colors.profit : colors.loss);
+                const typeText = isDividend ? '分红' : (isBuy ? '买入' : '卖出');
+                const sign = isDividend ? '+' : (isBuy ? '+' : '-');
                 return (
                   <div
                     key={tx.id}
@@ -496,6 +507,14 @@ export default function MobileDetail({ code }: MobileDetailProps) {
         netWorths={netWorths ?? []}
         basicInfo={basicInfo}
         transactions={transactions ?? []}
+        onSuccess={handleTransactionSuccess}
+      />
+      <DividendDialog
+        open={dividendOpen}
+        onOpenChange={setDividendOpen}
+        fundCode={code}
+        fundName={fundName}
+        netWorths={netWorths ?? []}
         onSuccess={handleTransactionSuccess}
       />
       <FundInfoDialog
