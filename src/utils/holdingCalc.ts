@@ -39,7 +39,7 @@ export function summarizeHolding(
   const prevNav = prevRecord ? prevRecord.netWorth : latestNav;
 
   const holdAmount = holdShares * latestNav;
-  const totalProfit = holdAmount - totalInvested + totalDividend;
+  const totalProfit = holdAmount - totalInvested + totalDividend - totalManagementFee;
   const totalProfitRate = totalInvested > 0 ? totalProfit / totalInvested : 0;
 
   // 管理费计算
