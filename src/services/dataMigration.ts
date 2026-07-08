@@ -1,7 +1,6 @@
 // 数据导出导入工具 - 导出/导入持久化数据 (JSON)
 // 支持持仓、排序、交易记录的合并导入
 import type { Holding, Transaction } from '@/types';
-import { getStorageMode, syncLocalToCloud } from '@/services/supabase';
 import { clearAllTxCache } from '@/services/transaction';
 
 // ===== 导出数据类型定义 =====
@@ -60,18 +59,9 @@ export async function importData(data: ExportData): Promise<ImportResult> {
   // 3. 合并交易记录：按 id 去重，有的跳过
   try {
     mergeTransactions(data.transactions);
-    clearAllTxCache(); // 合并且清理缓存，确保后续 syncLocalToCloud 读到最新数据
+    clearAllTxCache();
   } catch (e) {
     errors.push(`交易记录导入失败: ${e instanceof Error ? e.message : '未知错误'}`);
-  }
-
-  // 4. 云端模式下同步到 Supabase
-  if (getStorageMode() === 'cloud' && errors.length === 0) {
-    try {
-      await syncLocalToCloud();
-    } catch (e) {
-      errors.push(`云端同步失败: ${e instanceof Error ? e.message : '未知错误'}`);
-    }
   }
 
   return { success: errors.length === 0, errors };

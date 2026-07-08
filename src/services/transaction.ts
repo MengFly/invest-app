@@ -1,7 +1,6 @@
-// 交易记录存储服务 - 管理买入/卖出流水 (localStorage 持久化 / Supabase 云端)
+// 交易记录存储服务 - 管理买入/卖出流水 (Supabase 云端)
 import type { Transaction } from '@/types';
 import {
-  getStorageMode,
   fetchTransactions as cloudFetch,
   addTransaction as cloudAdd,
   updateTransactionCloud,
@@ -9,9 +8,7 @@ import {
   clearCloudTransactionsByFund,
 } from '@/services/supabase';
 
-const TRANSACTIONS_KEY = 'portfolio:transactions';
-
-// localStorage 缓存键（独立于 cloud cache，确保所有模式都生效）
+// localStorage 缓存键（独立于 cloud cache，减少重复请求）
 const TX_CACHE_PREFIX = 'cache:transactions';
 const TX_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 小时
 
@@ -42,7 +39,14 @@ function writeTxCache(data: Transaction[], fundCode?: string): void {
   } catch {}
 }
 
-/** 清除所有事务相关缓存（全量 + 各基金粒度） */
+/** 定向清除某基金的交易缓存，不清除其他基金的缓存 */
+function clearTxCache(fundCode: string): void {
+  try {
+    localStorage.removeItem(txCacheKey(fundCode));
+  } catch {}
+}
+
+/** 清除所有事务相关缓存（全量 + 各基金粒度），用于导入等不确定场景 */
 export function clearAllTxCache(): void {
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const k = localStorage.key(i);
@@ -52,45 +56,15 @@ export function clearAllTxCache(): void {
   }
 }
 
-async function fetchLocal(fundCode?: string): Promise<Transaction[]> {
-  try {
-    const raw = localStorage.getItem(TRANSACTIONS_KEY);
-    if (!raw) return [];
-    const all = JSON.parse(raw) as Transaction[];
-    if (!Array.isArray(all)) return [];
-    const filtered = fundCode ? all.filter((t) => t.fundCode === fundCode) : all;
-    return [...filtered].sort((a, b) => b.createdAt - a.createdAt);
-  } catch {
-    return [];
-  }
-}
-
-async function writeLocal(all: Transaction[]): Promise<void> {
-  try {
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(all));
-  } catch (e) {
-    throw new Error('保存交易记录失败');
-  }
-}
-
 export async function getTransactions(fundCode?: string): Promise<Transaction[]> {
-  // 优先读缓存（全量或基金粒度）
+  // 优先读缓存
   const cached = readTxCache(fundCode);
   if (cached) return cached;
 
-  if (getStorageMode() === 'cloud') {
-    try {
-      const result = await cloudFetch(fundCode);
-      writeTxCache(result, fundCode);
-      return result;
-    } catch {
-      // 降级到本地，但不缓存，确保下次重试云端
-      return fetchLocal(fundCode);
-    }
+  const result = await cloudFetch(fundCode);
+  if (fundCode) {
+    writeTxCache(result, fundCode);
   }
-
-  const result = await fetchLocal(fundCode);
-  writeTxCache(result, fundCode);
   return result;
 }
 
@@ -104,63 +78,26 @@ export async function addTransaction(
     createdAt: now,
   };
 
-  if (getStorageMode() === 'cloud') {
-    await cloudAdd(newTransaction);
-    clearAllTxCache(); // 清除缓存
-    return newTransaction;
-  }
-
-  const all = await fetchLocal();
-  all.push(newTransaction);
-  await writeLocal(all);
-  clearAllTxCache(); // 清除缓存
+  await cloudAdd(newTransaction);
+  clearTxCache(record.fundCode);
   return newTransaction;
 }
 
-export async function removeTransaction(id: string): Promise<void> {
-  if (getStorageMode() === 'cloud') {
-    await removeTransactionCloud(id);
-    clearAllTxCache();
-    return;
-  }
-
-  const all = await fetchLocal();
-  const next = all.filter((t) => t.id !== id);
-  try {
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(next));
-    clearAllTxCache();
-  } catch {}
+export async function removeTransaction(id: string, fundCode: string): Promise<void> {
+  await removeTransactionCloud(id, fundCode);
+  clearTxCache(fundCode);
 }
 
 export async function updateTransaction(
   id: string,
-  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note' >>
+  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note'>>,
+  fundCode: string
 ): Promise<void> {
-  if (getStorageMode() === 'cloud') {
-    await updateTransactionCloud(id, updates);
-    clearAllTxCache();
-    return;
-  }
-
-  const all = await fetchLocal();
-  const idx = all.findIndex((t) => t.id === id);
-  if (idx === -1) throw new Error('交易记录不存在');
-  all[idx] = { ...all[idx], ...updates };
-  await writeLocal(all);
-  clearAllTxCache();
+  await updateTransactionCloud(id, updates, fundCode);
+  clearTxCache(fundCode);
 }
 
 export async function removeByFund(fundCode: string): Promise<void> {
-  if (getStorageMode() === 'cloud') {
-    await clearCloudTransactionsByFund(fundCode);
-    clearAllTxCache();
-    return;
-  }
-
-  const all = await fetchLocal();
-  const next = all.filter((t) => t.fundCode !== fundCode);
-  try {
-    localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(next));
-    clearAllTxCache();
-  } catch {}
+  await clearCloudTransactionsByFund(fundCode);
+  clearTxCache(fundCode);
 }

@@ -6,13 +6,11 @@ import { useAllSummaries } from '@/hooks/useAllSummaries';
 import { useAllEstimatedNavs } from '@/hooks/useEstimatedNav';
 import { calcEstimatedProfit, calcTotalEstimatedProfit } from '@/utils/estimatedProfit';
 import { useAuth } from '@/hooks/useAuth';
-import { setStorageMode, syncLocalToCloud, clearOldConfig } from '@/services/supabase';
 import { AddFundDialog } from '@/components/AddFundDialog';
-import { AuthDialog } from '@/components/AuthDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 import { colors } from '@/theme';
-import { LogIn, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { formatMoney, formatPercent } from '@/utils/format';
 import MobileDetail from './MobileDetail';
 
@@ -38,30 +36,11 @@ function MobileList() {
 
   const [addFundOpen, setAddFundOpen] = useState(false);
   const [deleteCode, setDeleteCode] = useState<string | null>(null);
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const { user, loading: authLoading, signOut } = useAuth();
 
-  // 页面刷新后自动恢复云端存储模式（如果用户已登录）
-  useEffect(() => {
-    if (!authLoading && user) {
-      setStorageMode('cloud');
-    }
-  }, [user, authLoading]);
-
   const handleRefresh = useCallback(() => triggerRefresh(), [triggerRefresh]);
-
-  const handleLoginSuccess = useCallback(async () => {
-    setStorageMode('cloud');
-    try {
-      await syncLocalToCloud();
-      clearOldConfig();
-    } catch {
-      // 同步失败不影响使用
-    }
-    handleRefresh();
-  }, [handleRefresh]);
 
   const handleLogout = useCallback(() => {
     setLogoutConfirmOpen(true);
@@ -69,10 +48,8 @@ function MobileList() {
 
   const handleLogoutConfirm = useCallback(async () => {
     await signOut();
-    setStorageMode('local');
     setLogoutConfirmOpen(false);
-    handleRefresh();
-  }, [signOut, handleRefresh]);
+  }, [signOut]);
 
   // 返回时恢复滚动位置（等列表数据加载完成后再恢复）
   useEffect(() => {
@@ -125,26 +102,16 @@ function MobileList() {
             <div className="flex gap-2">
               {authLoading ? (
                 <span className="text-[10px]" style={{ color: colors.textTertiary }}>...</span>
-              ) : user ? (
-                <button
-                  type="button"
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
-                  style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-                  onClick={handleLogout}
-                  title={user.email ?? ''}
-                >
-                  <LogOut size={11} strokeWidth={1.5} />
-                  {(user.email ?? '').split('@')[0]}
-                </button>
               ) : (
                 <button
                   type="button"
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
                   style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-                  onClick={() => setAuthDialogOpen(true)}
+                  onClick={handleLogout}
+                  title={user?.email ?? ''}
                 >
-                  <LogIn size={11} strokeWidth={1.5} />
-                  登录
+                  <LogOut size={11} strokeWidth={1.5} />
+                  {(user?.email ?? '').split('@')[0]}
                 </button>
               )}
               <button
@@ -306,16 +273,11 @@ function MobileList() {
         onOpenChange={setAddFundOpen}
         onSuccess={handleRefresh}
       />
-      <AuthDialog
-        open={authDialogOpen}
-        onOpenChange={setAuthDialogOpen}
-        onLoginSuccess={handleLoginSuccess}
-      />
       <ConfirmDialog
         open={logoutConfirmOpen}
         onOpenChange={setLogoutConfirmOpen}
         title="退出登录"
-        message="确定要退出登录吗？退出后将切回本地存储模式。"
+        message="确定要退出登录吗？"
         confirmText="确认退出"
         onConfirm={handleLogoutConfirm}
       />

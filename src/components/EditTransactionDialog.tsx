@@ -56,7 +56,7 @@ export function EditTransactionDialog({
         shares: numShares,
         fee: numFee,
         note: note.trim() || undefined,
-      })
+      }, transaction.fundCode)
       onOpenChange(false)
       onSuccess?.()
     } catch (e) {
@@ -70,7 +70,7 @@ export function EditTransactionDialog({
     if (!confirm('确定删除此交易记录？')) return
     setDeleting(true)
     try {
-      await removeTransaction(transaction.id)
+      await removeTransaction(transaction.id, transaction.fundCode)
       onOpenChange(false)
       onSuccess?.()
     } catch {

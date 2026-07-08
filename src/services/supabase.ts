@@ -28,107 +28,6 @@ export function getClient(): SupabaseClient {
 const CACHE_PREFIX = 'supabase:cache:';
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 小时（仅在写入操作时清除缓存）
 
-// 运行时存储模式（不再持久化到 localStorage，由登录状态决定）
-let currentMode: StorageMode = 'local';
-
-export type StorageMode = 'local' | 'cloud';
-
-/**
- * 获取当前存储模式
- */
-export function getStorageMode(): StorageMode {
-  return currentMode;
-}
-
-/**
- * 设置存储模式
- */
-export function setStorageMode(mode: StorageMode): void {
-  currentMode = mode;
-}
-
-/**
- * 清理旧版 localStorage 配置项（升级后的一次性清理）
- */
-export function clearOldConfig(): void {
-  try {
-    localStorage.removeItem('supabase:config');
-    localStorage.removeItem('storage:mode');
-  } catch {
-    // 清理失败不影响使用
-  }
-}
-
-/**
- * 合并本地数据到云端（本地覆盖云端同名记录，云端独有保留）
- */
-export async function syncLocalToCloud(): Promise<void> {
-  // 动态导入本地服务以避免循环依赖
-  const { getHoldings, getOrder } = await import('./portfolio');
-  const { getTransactions } = await import('./transaction');
-
-  const localHoldings = await getHoldings();
-  const localOrder = await getOrder();
-  const localTransactions = await getTransactions();
-
-  const cloudTransactions = await fetchTransactions();
-
-  // 合并 holdings：以 code 为 key，本地覆盖云端
-  const mergedHoldings = new Map<string, { code: string; name: string; addedAt: number; order: number }>();
-  // 先加入云端数据
-  const cloudOrderMap = new Map<string, number>();
-  const client = getClient();
-  const { data: cloudData } = await client.from('fund_holdings').select('*');
-  for (const h of (cloudData ?? [])) {
-    mergedHoldings.set(h.code, h);
-    cloudOrderMap.set(h.code, h.order ?? 999);
-  }
-  // 本地覆盖
-  let nextOrder = Math.max(0, ...Array.from(cloudOrderMap.values())) + 1;
-  for (const h of localHoldings) {
-    const existingOrder = cloudOrderMap.get(h.code);
-    mergedHoldings.set(h.code, {
-      code: h.code,
-      name: h.name,
-      addedAt: h.addedAt,
-      order: existingOrder ?? nextOrder++,
-    });
-  }
-  // 应用本地排序
-  if (localOrder.length > 0) {
-    localOrder.forEach((code, idx) => {
-      const existing = mergedHoldings.get(code);
-      if (existing) {
-        mergedHoldings.set(code, { ...existing, order: idx });
-      }
-    });
-  }
-
-  // 批量 upsert holdings
-  const holdingsArray = Array.from(mergedHoldings.values());
-  if (holdingsArray.length > 0) {
-    const { error: upsertErr } = await client.from('fund_holdings').upsert(holdingsArray, { onConflict: 'code' });
-    if (upsertErr) throw new Error(upsertErr.message);
-  }
-
-  // 合并 transactions：以 id 为 key，本地覆盖云端
-  const mergedTxs = new Map<string, any>();
-  for (const tx of cloudTransactions) {
-    mergedTxs.set(tx.id, tx);
-  }
-  for (const tx of localTransactions) {
-    mergedTxs.set(tx.id, tx);
-  }
-
-  // 批量 upsert transactions
-  const txsArray = Array.from(mergedTxs.values());
-  if (txsArray.length > 0) {
-    const { error: txErr } = await client.from('fund_transactions').upsert(txsArray, { onConflict: 'id' });
-    if (txErr) throw new Error(txErr.message);
-  }
-}
-
-
 // ==================== 缓存辅助 ====================
 
 function getCache<T>(key: string): T | null {
@@ -168,6 +67,12 @@ function clearCache(key?: string): void {
       if (k?.startsWith(CACHE_PREFIX)) localStorage.removeItem(k);
     }
   }
+}
+
+/** 定向清除某基金的交易缓存，不清除其他基金的缓存 */
+function clearTransactionCache(fundCode: string): void {
+  const key = CACHE_PREFIX + 'transactions:' + fundCode;
+  localStorage.removeItem(key);
 }
 
 // ==================== fund_holdings CRUD ====================
@@ -299,7 +204,7 @@ export async function addTransaction(tx: Transaction): Promise<void> {
   const client = getClient();
   const { error: err } = await client.from('fund_transactions').insert(tx);
   if (err) throw new Error(err.message);
-  clearCache('transactions');
+  clearTransactionCache(tx.fundCode);
 }
 
 /**
@@ -307,22 +212,23 @@ export async function addTransaction(tx: Transaction): Promise<void> {
  */
 export async function updateTransactionCloud(
   id: string,
-  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note' >>
+  updates: Partial<Pick<Transaction, 'date' | 'amount' | 'shares' | 'fee' | 'note' >>,
+  fundCode: string
 ): Promise<void> {
   const client = getClient();
   const { error: err } = await client.from('fund_transactions').update(updates).eq('id', id);
   if (err) throw new Error(err.message);
-  clearCache('transactions');
+  clearTransactionCache(fundCode);
 }
 
 /**
  * 删除交易记录
  */
-export async function removeTransactionCloud(id: string): Promise<void> {
+export async function removeTransactionCloud(id: string, fundCode: string): Promise<void> {
   const client = getClient();
   const { error: err } = await client.from('fund_transactions').delete().eq('id', id);
   if (err) throw new Error(err.message);
-  clearCache('transactions');
+  clearTransactionCache(fundCode);
 }
 
 /**
@@ -332,5 +238,5 @@ export async function clearCloudTransactionsByFund(fundCode: string): Promise<vo
   const client = getClient();
   const { error: err } = await client.from('fund_transactions').delete().eq('fundCode', fundCode);
   if (err) throw new Error(err.message);
-  clearCache('transactions');
+  clearTransactionCache(fundCode);
 }

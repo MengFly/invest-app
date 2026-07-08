@@ -37,7 +37,7 @@ export async function resolveWithNetWorths(
       continue;
     }
 
-    await updateTransaction(tx.id, updates);
+    await updateTransaction(tx.id, updates, tx.fundCode);
     resolvedCount++;
   }
 
