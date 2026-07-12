@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import  { useState, useMemo, useCallback, useEffect } from 'react';
 import ReactEChartsCore from 'echarts-for-react/esm/core';
 import * as echarts from 'echarts/core';
 import { LineChart, ScatterChart } from 'echarts/charts';
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { colors } from '@/theme';
 import { getAllIndicators, getIndicator, TREND_CHANNEL_ID } from '@/utils/indicatorRegistry';
-import type { Indicator, ConfigField } from '@/utils/indicatorRegistry';
+import type { ConfigField } from '@/utils/indicatorRegistry';
 import type { NetWorthRecord, Transaction } from '@/types';
 
 echarts.use([LineChart, ScatterChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer]);

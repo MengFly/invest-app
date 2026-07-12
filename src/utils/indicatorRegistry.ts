@@ -206,7 +206,6 @@ const trendChannelIndicator: Indicator<TrendChannelConfigValues, TrendChannelRes
             // scatter 系列的 data 是 [x, y] 数组，line 系列是单个数值
             const val: number = Array.isArray(raw) ? raw[1] : raw;
             if (val === null || val === undefined) continue;
-            const color = typeof p.color === 'string' ? p.color : colors.textPrimary;
             const label = p.seriesName;
             html += `<div style="display:flex;justify-content:space-between;gap:24px;font-size:11px;line-height:1.6">
               <span style="color:${colors.textTertiary}">${label}</span>
