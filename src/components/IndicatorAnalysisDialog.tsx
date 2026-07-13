@@ -275,32 +275,40 @@ export function IndicatorAnalysisDialog({
           if (baseOption.xAxis && Array.isArray(baseOption.xAxis.data)) {
             baseOption.xAxis.data.push(estDate);
           }
-          // 在现有所有 line 系列末尾添加 null 占位，避免线条延伸到预估点
+          // 处理所有 line 系列：净值线单独处理，其余推 null 截断
+          let lastNavValue: number | null = null;
           if (Array.isArray(baseOption.series)) {
             for (const s of baseOption.series) {
               if (s.type === 'line' && Array.isArray(s.data)) {
-                s.data.push(null);
+                if (s.id === 'nav') {
+                  // 记录净值线最后一个实际值，然后用 null 截断
+                  const lastVal = s.data[s.data.length - 1];
+                  lastNavValue = typeof lastVal === 'number' ? lastVal : null;
+                  s.data.push(null);
+                } else {
+                  s.data.push(null);
+                }
               }
             }
           }
-          // 添加灰色预估点 scatter 系列
-          baseOption.series.push({
-            id: 'estimated-nav',
-            name: '今日预估',
-            type: 'scatter',
-            data: [estimatedNav],
-            symbol: 'circle',
-            symbolSize: 8,
-            itemStyle: { color: '#aaa', borderColor: '#fff', borderWidth: 1, opacity: 0.8 },
-            label: {
-              show: true,
-              formatter: `预估 ${estimatedNav.toFixed(4)}`,
-              color: '#aaa',
-              fontSize: 10,
-              position: 'top',
-            },
-            z: 30,
-          });
+          // 添加净值预估延伸线（从最后一个实际净值连接到预估净值）
+          if (lastNavValue !== null) {
+            const extData = new Array(netWorths.length > 0 ? netWorths.length - 1 : 0).fill(null);
+            extData.push(lastNavValue, estimatedNav);
+            baseOption.series.push({
+              id: 'nav-estimated',
+              name: '净值(预估)',
+              type: 'line',
+              data: extData,
+              smooth: false,
+              symbol: 'circle',
+              symbolSize: 5,
+              lineStyle: { color: '#aaa', width: 2, type: 'dashed' },
+              itemStyle: { color: '#aaa' },
+              connectNulls: false,
+              z: 10,
+            });
+          }
         }
       }
 
