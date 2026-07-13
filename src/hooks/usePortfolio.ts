@@ -80,6 +80,7 @@ export function useHoldingDetail(code: string | undefined): {
   summary: HoldingSummary | null;
   loading: boolean;
   refresh: () => void;
+  transactions: Transaction[];
 } {
   const [holding, setHolding] = useState<Holding | null>(null);
   const [holdingLoading, setHoldingLoading] = useState(true);
@@ -129,5 +130,5 @@ export function useHoldingDetail(code: string | undefined): {
 
   const loading = holdingLoading || txLoading || (holding && navLoading && !netWorths ? true : false);
 
-  return { summary, loading, refresh };
+  return { summary, loading, refresh, transactions: transactions ?? [] };
 }

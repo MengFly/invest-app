@@ -1,27 +1,27 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { usePersistedState } from '@/hooks/usePersistedState';
-import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
-import { isPendingTx } from '@/utils/transactionUtils';
-import { colors } from '@/theme';
-import { formatPercent } from '@/utils/format';
-import { findNavByDate } from '@/utils/navUtils';
-import { Tooltip } from '@/components/ui/Tooltip';
-import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
-import { useFundNetWorth, useFundBasicInfo } from '@/hooks/useFund';
-import { useEstimatedNav } from '@/hooks/useEstimatedNav';
-import { useAppStore } from '@/hooks/useAppStore';
+import { BuyDialog } from '@/components/BuyDialog';
 import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
-import { BuyDialog } from '@/components/BuyDialog';
-import { SellDialog } from '@/components/SellDialog';
 import { DividendDialog } from '@/components/DividendDialog';
 import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { FundInfoDialog } from '@/components/FundInfoDialog';
-import { calcDailyProfits } from '@/utils/profitChartCalc';
 import { IndicatorAnalysisDialog } from '@/components/IndicatorAnalysisDialog';
-import { Info } from 'lucide-react';
-import type { DailyProfitResult } from '@/utils/profitChartCalc';
+import { SellDialog } from '@/components/SellDialog';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { useAppStore } from '@/hooks/useAppStore';
+import { useEstimatedNav } from '@/hooks/useEstimatedNav';
+import { useFundBasicInfo, useFundNetWorth } from '@/hooks/useFund';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
+import { colors } from '@/theme';
 import type { Transaction } from '@/types';
+import { formatPercent } from '@/utils/format';
+import { findNavByDate } from '@/utils/navUtils';
+import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
+import type { DailyProfitResult } from '@/utils/profitChartCalc';
+import { calcDailyProfits } from '@/utils/profitChartCalc';
+import { isPendingTx } from '@/utils/transactionUtils';
+import { Info } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type RangeKey = '6m' | '1y' | '3y' | 'all';
 
@@ -99,9 +99,15 @@ export function RightPanel({ code }: RightPanelProps) {
   const [showHoldingCostPolyline, setShowHoldingCostPolyline] = usePersistedState('right-panel:showHoldingCostPolyline', false);
   const [showCumulativeCostPolyline, setShowCumulativeCostPolyline] = usePersistedState('right-panel:showCumulativeCostPolyline', false);
   const [showTxDots, setShowTxDots] = usePersistedState('right-panel:showTxDots', true);
+  const [zoomRange, setZoomRange] = useState({ start: 0, end: 100 });
+
+  // 切换时间范围时重置缩放
+  useEffect(() => {
+    setZoomRange({ start: 0, end: 100 });
+  }, [range]);
 
   const { triggerRefresh } = useAppStore();
-  const { summary, loading: detailLoading, refresh: refreshDetail } = useHoldingDetail(code ?? undefined);
+  const { summary, loading: detailLoading, refresh: refreshDetail, transactions: detailTransactions } = useHoldingDetail(code ?? undefined);
   const { data: netWorths, loading, error, refresh: refreshNav } = useFundNetWorth(code ?? undefined);
   const { data: transactions, refresh: refreshTx } = useTransactions(code ?? undefined);
   const { data: basicInfo } = useFundBasicInfo(code ?? undefined);
@@ -149,8 +155,8 @@ export function RightPanel({ code }: RightPanelProps) {
   }, [netWorths, range]);
 
   const dailyProfit = useMemo<DailyProfitResult | null>(
-    () => calcDailyProfits(filteredNetWorths, transactions ?? []),
-    [filteredNetWorths, transactions]
+    () => calcDailyProfits(filteredNetWorths, detailTransactions ?? []),
+    [filteredNetWorths, detailTransactions]
   );
 
   const ranges: { key: RangeKey; label: string }[] = [
@@ -260,10 +266,10 @@ export function RightPanel({ code }: RightPanelProps) {
             </div>
           )}
 
-          <div className="flex gap-3 mt-4 flex-1 min-h-[400px]">
+          <div className="flex gap-3 mt-4 flex-1 min-h-[300px]">
             <div className="flex-1 flex flex-col gap-3">
               <div
-                className="overflow-hidden rounded-xl border flex-1"
+                className="overflow-hidden rounded-xl border"
                 style={{ borderColor: colors.borderLight, backgroundColor: colors.bgCard }}
               >
                 <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
@@ -381,6 +387,9 @@ export function RightPanel({ code }: RightPanelProps) {
                         height={220}
                         estimatedNav={estimatedNavData?.estimatedNav}
                         estimatedTime={estimatedNavData?.estimatedTime}
+                        dataZoomStart={zoomRange.start}
+                        dataZoomEnd={zoomRange.end}
+                        onZoomChange={(start, end) => setZoomRange({ start, end })}
                       />
                     </div>
                   ) : (
@@ -392,7 +401,7 @@ export function RightPanel({ code }: RightPanelProps) {
               </div>
 
               <div
-                className="overflow-hidden rounded-xl border flex-1"
+                className="overflow-hidden rounded-xl border"
                 style={{ borderColor: colors.borderLight, backgroundColor: colors.bgCard }}
               >
                 <div className="px-4 pt-3.5 pb-2">
@@ -410,14 +419,14 @@ export function RightPanel({ code }: RightPanelProps) {
                   <div className="pb-2">
                     <ProfitChart
                       key={`profit-${range}`}
-                      points={dailyProfit.points}
-                      dataRange={dailyProfit.dataRange}
+                      profits={dailyProfit.profits}
                       endLabel={dailyProfit.endLabel}
-                      yLabels={dailyProfit.yLabels}
                       xLabels={dailyProfit.xLabels}
-                      holdingPoints={dailyProfit.holdingPoints}
-                      holdingDataRange={dailyProfit.holdingDataRange}
+                      holdingProfits={dailyProfit.holdingProfits}
                       height={220}
+                      dataZoomStart={zoomRange.start}
+                      dataZoomEnd={zoomRange.end}
+                      onZoomChange={(start, end) => setZoomRange({ start, end })}
                     />
                   </div>
                 )}
@@ -473,7 +482,7 @@ export function RightPanel({ code }: RightPanelProps) {
                   <span className="w-[64px] text-right">份额</span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto max-h-[420px]">
                   {!transactions || sortedTransactions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <span className="text-xs" style={{ color: colors.textSecondary }}>暂无交易记录</span>
