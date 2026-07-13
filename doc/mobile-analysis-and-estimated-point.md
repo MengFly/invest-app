@@ -21,9 +21,9 @@
 
 | 属性 | 值 |
 |------|-----|
-| **描述** | 在 IndicatorAnalysisDialog 的 Props 接口中增加 `estimatedNav?: number` 和 `estimatedTime?: string` 两个可选属性。当存在预估数据且预估日期晚于最新净值日期时，在 ECharts 图表上增加一个灰色圆点的 scatter 系列表示今日预估点位。预估点仅用于视觉展示，不参与指标计算。 |
+| **描述** | 在 IndicatorAnalysisDialog 的 Props 接口中增加 `estimatedNav?: number` 和 `estimatedTime?: string` 两个可选属性。当存在预估数据且预估日期晚于最新净值日期时，在 ECharts 图表上增加一条灰色虚线净值延伸到预估点位。延伸线从最后一个实际净值连接到预估值，末端带灰色圆点标记。预估点仅用于视觉展示，不参与指标计算。 |
 | **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
-| **验收标准** | 1. Props 接口新增 `estimatedNav` 和 `estimatedTime` 可选属性<br>2. 当预估数据存在时，图表末端出现一个灰色圆点标记<br>3. 悬停时 tooltip 显示「预估」字样<br>4. 预估点不影响均线和通道线的位置 |
+| **验收标准** | 1. Props 接口新增 `estimatedNav` 和 `estimatedTime` 可选属性<br>2. 当预估数据存在时，图表末端灰色虚线从最后一个实际净值延伸到预估净值，末端带灰色圆点<br>3. 悬停时 tooltip 显示「净值(预估)」字样<br>4. 仅净值线延伸，均线和通道线不受影响 |
 
 ### 任务 2：IndicatorAnalysisDialog 默认缩放最近1个月
 
@@ -90,6 +90,14 @@
 | **方案** | 将 `indicator?.configSchema.fields.length > 0` 改为 `indicator && indicator.configSchema.fields.length > 0` |
 | **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
 
+### 5.4 预估点从 scatter 散点改为净值线延伸段
+
+| 属性 | 值 |
+|------|-----|
+| **现象** | 首次使用 scatter 散点显示预估净值，data 格式错误（`data: [estimatedNav]`）导致点被画在图表最左侧不可见；用户希望预估点作为净值曲线的一部分而非独立散点 |
+| **方案演进** | ① scatter 散点（`data: [estimatedNav]`，错误）→ ② **最终：line 延伸段**。新增 `nav-estimated` 虚线 line 系列，数据构造为 `[null × N-1, lastNav, estimatedNav]`，从最后一个实际净值点连接到预估点 |
+| **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
+
 ### 关于移动端弹窗布局
 
 **最终实现方案**（经过多轮修正后）：
@@ -103,7 +111,7 @@
 ### 1. IndicatorAnalysisDialog 增加预估净值支持
 - **状态**：✅ 已完成
 - **修改文件**：
-  - `src/components/IndicatorAnalysisDialog.tsx` — Props 增加 `estimatedNav` 和 `estimatedTime`；在趋势通道的 chartOption 中，当预估日期晚于最新净值日期时，向 xAxis 添加预估日期、向所有 line 系列添加 null 占位、添加灰色 scatter 点标记预估净值；chartKey 加入 estimatedNav 依赖
+  - `src/components/IndicatorAnalysisDialog.tsx` — Props 增加 `estimatedNav` 和 `estimatedTime`；在趋势通道的 chartOption 中，当预估日期晚于最新净值日期时，向 xAxis 添加预估日期、向所有 line 系列（均线/通道线）添加 null 截断、向净值线添加 null 截断并新增 `nav-estimated` 灰色虚线 line 系列从最后一个实际净值延伸到预估点；chartKey 加入 estimatedNav 依赖
 - **审查结果**：✅ 审查通过
 - **完成时间**：2026-07-13
 
@@ -139,5 +147,12 @@
 - **状态**：✅ 已完成
 - **修改文件**：
   - `src/components/IndicatorAnalysisDialog.tsx` — 将 `indicator?.configSchema.fields.length > 0` 改为 `indicator && indicator.configSchema.fields.length > 0`，避免 TS 无法通过可选链收窄类型的问题
+- **审查结果**：✅ 审查通过
+- **完成时间**：2026-07-13
+
+### 7. 修正：预估点从 scatter 改为净值线延伸段
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/IndicatorAnalysisDialog.tsx` — 移除 scatter 散点系列，改为新增 `nav-estimated` 灰色虚线 line 系列；数据构造为 `[null × N-1, lastNav, estimatedNav]`；净值线末尾推 null 截断，其余均线/通道线不变
 - **审查结果**：✅ 审查通过
 - **完成时间**：2026-07-13
