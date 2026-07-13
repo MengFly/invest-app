@@ -122,6 +122,12 @@
 - **完成时间**：2026-07-08
 
 ### 3. 修改 App.tsx 添加认证守卫
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/App.tsx` — 添加 `/login` 路由；添加 `AuthGuard` 组件，认证加载中显示 spinner，未认证重定向到 `/login`
+  - `src/pages/LoginPage.tsx` — 添加已登录检查和 hooks 顺序修复
+- **审查结果**：✅ 审查通过 — 3 项验收标准全部满足
+- **完成时间**：2026-07-08
 
 ### 4. 简化 portfolio.ts 移除本地存储分支
 - **状态**：✅ 已完成
@@ -163,14 +169,3 @@
 - **App.tsx**：添加 AuthGuard 认证守卫，添加 `/login` 路由
 - **LoginPage.tsx**：全新全屏登录页
 - **DesktopApp.tsx / MobileApp.tsx**：移除存储模式相关代码，简化登出流程
-- **状态**：✅ 已完成
-- **修改文件**：
-  - `src/services/dataMigration.ts` — 移除 `getStorageMode`/`syncLocalToCloud` 导入；移除 `importData()` 中的云端同步步骤
-- **审查结果**：✅ 审查通过 — 4 项验收标准全部满足
-- **完成时间**：2026-07-08
-- **状态**：✅ 已完成
-- **修改文件**：
-  - `src/App.tsx` — 添加 `/login` 路由；添加 `AuthGuard` 组件，认证加载中显示 spinner，未认证重定向到 `/login`
-  - `src/pages/LoginPage.tsx` — 添加已登录检查和 hooks 顺序修复
-- **审查结果**：✅ 审查通过 — 3 项验收标准全部满足
-- **完成时间**：2026-07-08

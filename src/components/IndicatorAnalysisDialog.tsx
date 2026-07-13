@@ -19,6 +19,8 @@ interface IndicatorAnalysisDialogProps {
   netWorths: NetWorthRecord[];
   transactions?: Transaction[];
   code: string | null;
+  estimatedNav?: number;
+  estimatedTime?: string;
 }
 
 function loadIndicatorConfig(code: string, indicatorId: string): Record<string, any> | null {
@@ -109,6 +111,8 @@ export function IndicatorAnalysisDialog({
   netWorths,
   transactions,
   code,
+  estimatedNav,
+  estimatedTime,
 }: IndicatorAnalysisDialogProps) {
   const indicators = useMemo(() => getAllIndicators(), []);
 
@@ -162,7 +166,7 @@ export function IndicatorAnalysisDialog({
     }
   }, [indicator, netWorths, configValues]);
 
-  // 生成 ECharts option（含趋势通道买卖点标记）
+  // 生成 ECharts option（含趋势通道买卖点标记和今日预估点）
   const chartOption = useMemo(() => {
     if (!indicator || !result) return null;
     try {
@@ -202,28 +206,74 @@ export function IndicatorAnalysisDialog({
         }
       }
 
+      // 趋势通道：叠加今日预估净值灰色点
+      if (selectedId === TREND_CHANNEL_ID && estimatedNav !== undefined && estimatedTime) {
+        const estDate = estimatedTime.slice(0, 10);
+        const lastDate = netWorths.length > 0 ? netWorths[netWorths.length - 1].date : '';
+        if (estDate > lastDate) {
+          const baseOption = base as any;
+          // 向 xAxis 分类数据添加预估日期
+          if (baseOption.xAxis && Array.isArray(baseOption.xAxis.data)) {
+            baseOption.xAxis.data.push(estDate);
+          }
+          // 在现有所有 line 系列末尾添加 null 占位，避免线条延伸到预估点
+          if (Array.isArray(baseOption.series)) {
+            for (const s of baseOption.series) {
+              if (s.type === 'line' && Array.isArray(s.data)) {
+                s.data.push(null);
+              }
+            }
+          }
+          // 添加灰色预估点 scatter 系列
+          baseOption.series.push({
+            id: 'estimated-nav',
+            name: '今日预估',
+            type: 'scatter',
+            data: [estimatedNav],
+            symbol: 'circle',
+            symbolSize: 8,
+            itemStyle: { color: '#aaa', borderColor: '#fff', borderWidth: 1, opacity: 0.8 },
+            label: {
+              show: true,
+              formatter: `预估 ${estimatedNav.toFixed(4)}`,
+              color: '#aaa',
+              fontSize: 10,
+              position: 'top',
+            },
+            z: 30,
+          });
+        }
+      }
+
       return base;
     } catch (e) {
       return null;
     }
-  }, [indicator, result, netWorths, transactions, selectedId]);
+  }, [indicator, result, netWorths, transactions, selectedId, estimatedNav, estimatedTime]);
 
-  // 基金数据标识，切换时重建图表实例（含交易数据变化）
+  // 基金数据标识，切换时重建图表实例（含交易数据和预估净值变化）
   const chartKey = useMemo(() => {
     if (netWorths.length === 0) return 'empty';
-    return `${netWorths[0]?.date}-${netWorths[netWorths.length - 1]?.date}-${netWorths.length}-tx${transactions?.length ?? 0}`;
-  }, [netWorths, transactions]);
+    return `${netWorths[0]?.date}-${netWorths[netWorths.length - 1]?.date}-${netWorths.length}-tx${transactions?.length ?? 0}-est${estimatedNav ?? ''}`;
+  }, [netWorths, transactions, estimatedNav]);
 
-  // 图表就绪后在微任务中延迟添加 dataZoom
+  // 图表就绪后在微任务中延迟添加 dataZoom，默认聚焦最近30天
   const handleChartReady = useCallback((instance: any) => {
     Promise.resolve().then(() => {
       try {
+        // 计算最近约30个交易日的起始百分比
+        // 包含可能添加的预估点（+1）
+        const totalPoints = netWorths.length + (estimatedNav !== undefined && estimatedTime ? 1 : 0);
+        const zoomDays = 30;
+        const startPct = totalPoints > zoomDays
+          ? ((totalPoints - zoomDays) / totalPoints) * 100
+          : 0;
         instance.setOption({
-          dataZoom: [{ type: 'inside', start: 0, end: 100, minValueSpan: 10 }],
+          dataZoom: [{ type: 'inside', start: startPct, end: 100, minValueSpan: 10 }],
         });
       } catch {}
     });
-  }, []);
+  }, [netWorths.length, estimatedNav, estimatedTime]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

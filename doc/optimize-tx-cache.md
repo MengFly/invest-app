@@ -18,7 +18,7 @@
 | 问题 | 回答 |
 |------|------|
 | 是否所有调用方在写入时都能拿到 fundCode？ | 是，BuyDialog/SellDialog/DividendDialog/EditTransactionDialog/pendingNavResolver 都有 fundCode |
-| 全量缓存是否需要清除？ | 是，全量缓存包含所有基金数据，任何交易变更都使其过期 |
+| 全量缓存是否需要清除？ | 不需要。全量缓存 `cache:transactions`（无 fundCode 后缀）从未被任何代码创建过，所有调用方都传入了 fundCode。修复只清 `cache:transactions:{fundCode}`。 |
 | 删除持仓（removeHolding）时呢？ | 该情况需要清除所有缓存，因为没有特定基金需要保留 |
 
 ## 3. 任务列表

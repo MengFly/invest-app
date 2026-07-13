@@ -585,6 +585,8 @@ export function RightPanel({ code }: RightPanelProps) {
         netWorths={netWorths ?? []}
         transactions={transactions ?? undefined}
         code={code}
+        estimatedNav={estimatedNavData?.estimatedNav}
+        estimatedTime={estimatedNavData?.estimatedTime}
       />
     </div>
   );
