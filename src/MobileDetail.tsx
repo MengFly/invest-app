@@ -1,28 +1,28 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { usePersistedState } from '@/hooks/usePersistedState';
-import { useNavigate } from 'react-router-dom';
-import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
-import { isPendingTx } from '@/utils/transactionUtils';
-import { colors } from '@/theme';
-import { formatPercent } from '@/utils/format';
-import { findNavByDate } from '@/utils/navUtils';
-import { Tooltip } from '@/components/ui/Tooltip';
-import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
-import { useFundNetWorth, useFundBasicInfo } from '@/hooks/useFund';
-import { useEstimatedNav } from '@/hooks/useEstimatedNav';
-import { useAppStore } from '@/hooks/useAppStore';
+import { BuyDialog } from '@/components/BuyDialog';
 import { NavChart } from '@/components/chart/NavChart';
 import { ProfitChart } from '@/components/chart/ProfitChart';
-import { BuyDialog } from '@/components/BuyDialog';
-import { SellDialog } from '@/components/SellDialog';
 import { DividendDialog } from '@/components/DividendDialog';
 import { EditTransactionDialog } from '@/components/EditTransactionDialog';
 import { FundInfoDialog } from '@/components/FundInfoDialog';
-import { calcDailyProfits } from '@/utils/profitChartCalc';
 import { IndicatorAnalysisDialog } from '@/components/IndicatorAnalysisDialog';
-import { ArrowLeft } from 'lucide-react';
-import type { DailyProfitResult } from '@/utils/profitChartCalc';
+import { SellDialog } from '@/components/SellDialog';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { useAppStore } from '@/hooks/useAppStore';
+import { useEstimatedNav } from '@/hooks/useEstimatedNav';
+import { useFundBasicInfo, useFundNetWorth } from '@/hooks/useFund';
+import { usePersistedState } from '@/hooks/usePersistedState';
+import { useHoldingDetail, useTransactions } from '@/hooks/usePortfolio';
+import { colors } from '@/theme';
 import type { Transaction } from '@/types';
+import { formatPercent } from '@/utils/format';
+import { findNavByDate } from '@/utils/navUtils';
+import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
+import type { DailyProfitResult } from '@/utils/profitChartCalc';
+import { calcDailyProfits } from '@/utils/profitChartCalc';
+import { isPendingTx } from '@/utils/transactionUtils';
+import { ArrowLeft } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 type RangeKey = '6m' | '1y' | '3y' | 'all';
 
@@ -95,6 +95,13 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
 
   const [navSettingsOpen, setNavSettingsOpen] = useState(false);
+  const [zoomRange, setZoomRange] = useState({ start: 0, end: 100 });
+
+  // 切换时间范围时重置缩放
+  useEffect(() => {
+    setZoomRange({ start: 0, end: 100 });
+  }, [range]);
+
   const [showHoldingCostLine, setShowHoldingCostLine] = usePersistedState('mobile-detail:showHoldingCostLine', true);
   const [showCumulativeCostLine, setShowCumulativeCostLine] = usePersistedState('mobile-detail:showCumulativeCostLine', true);
   const [showHoldingCostPolyline, setShowHoldingCostPolyline] = usePersistedState('mobile-detail:showHoldingCostPolyline', false);
@@ -102,7 +109,7 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   const [showTxDots, setShowTxDots] = usePersistedState('mobile-detail:showTxDots', true);
 
   const { triggerRefresh } = useAppStore();
-  const { summary, loading: detailLoading, refresh: refreshDetail } = useHoldingDetail(code);
+  const { summary, loading: detailLoading, refresh: refreshDetail, transactions: detailTransactions } = useHoldingDetail(code);
   const { data: netWorths, loading, error, refresh: refreshNav } = useFundNetWorth(code);
   const { data: transactions, refresh: refreshTx } = useTransactions(code);
   const { data: basicInfo } = useFundBasicInfo(code);
@@ -149,8 +156,8 @@ export default function MobileDetail({ code }: MobileDetailProps) {
   }, [netWorths, range]);
 
   const dailyProfit = useMemo<DailyProfitResult | null>(
-    () => calcDailyProfits(filteredNetWorths, transactions ?? []),
-    [filteredNetWorths, transactions]
+    () => calcDailyProfits(filteredNetWorths, detailTransactions ?? []),
+    [filteredNetWorths, detailTransactions]
   );
 
   const ranges: { key: RangeKey; label: string }[] = [
@@ -386,6 +393,9 @@ export default function MobileDetail({ code }: MobileDetailProps) {
                   height={200}
                   estimatedNav={estimatedNavData?.estimatedNav}
                   estimatedTime={estimatedNavData?.estimatedTime}
+                  dataZoomStart={zoomRange.start}
+                  dataZoomEnd={zoomRange.end}
+                  onZoomChange={(start, end) => setZoomRange({ start, end })}
                 />
               </div>
             ) : (
@@ -413,14 +423,14 @@ export default function MobileDetail({ code }: MobileDetailProps) {
             <div className="pb-2">
               <ProfitChart
                 key={`profit-${range}`}
-                points={dailyProfit.points}
-                dataRange={dailyProfit.dataRange}
+                profits={dailyProfit.profits}
                 endLabel={dailyProfit.endLabel}
-                yLabels={dailyProfit.yLabels}
                 xLabels={dailyProfit.xLabels}
-                holdingPoints={dailyProfit.holdingPoints}
-                holdingDataRange={dailyProfit.holdingDataRange}
+                holdingProfits={dailyProfit.holdingProfits}
                 height={200}
+                dataZoomStart={zoomRange.start}
+                dataZoomEnd={zoomRange.end}
+                onZoomChange={(start, end) => setZoomRange({ start, end })}
               />
             </div>
           )}
@@ -446,7 +456,7 @@ export default function MobileDetail({ code }: MobileDetailProps) {
             <span className="w-[52px] text-right">份额</span>
           </div>
 
-          <div className="max-h-[300px] overflow-y-auto">
+          <div className="max-h-[100px] overflow-y-auto">
             {!transactions || sortedTransactions.length === 0 ? (
               <div className="flex items-center justify-center py-8">
                 <span className="text-xs" style={{ color: colors.textSecondary }}>暂无交易记录</span>
