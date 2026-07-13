@@ -5,10 +5,9 @@ import { LineChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { colors } from '@/theme';
 import { getAllIndicators, getIndicator, TREND_CHANNEL_ID } from '@/utils/indicatorRegistry';
-import type { ConfigField } from '@/utils/indicatorRegistry';
+import type { ConfigField, Indicator } from '@/utils/indicatorRegistry';
 import type { NetWorthRecord, Transaction } from '@/types';
 
 echarts.use([LineChart, ScatterChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer]);
@@ -103,6 +102,66 @@ function ConfigControl({
   }
 
   return null;
+}
+
+/** 配置面板内容（拆为独立组件避免 IIFE 在 Portal 中的渲染异常） */
+function ConfigPanelContent({
+  indicators,
+  indicator,
+  selectedId,
+  onIndicatorChange,
+  configValues,
+  onConfigChange,
+}: {
+  indicators: Indicator[];
+  indicator: Indicator | undefined;
+  selectedId: string;
+  onIndicatorChange: (id: string) => void;
+  configValues: Record<string, any>;
+  onConfigChange: (key: string, value: string | number) => void;
+}) {
+  return (
+    <div className="px-4 py-3 md:px-4 md:py-4">
+      <div className="mb-4">
+        <div className="text-[10px] font-semibold tracking-wide mb-2" style={{ color: colors.textTertiary }}>
+          选择指标
+        </div>
+        <select
+          className="w-full px-2.5 py-2 rounded-lg text-[12px] border cursor-pointer"
+          style={{ backgroundColor: colors.bgInput, borderColor: colors.borderLight, color: colors.textPrimary }}
+          value={selectedId}
+          onChange={(e) => onIndicatorChange(e.target.value)}
+        >
+          {indicators.map((ind) => (
+            <option key={ind.id} value={ind.id}>{ind.name}</option>
+          ))}
+        </select>
+        {indicator?.description && (
+          <div className="text-[10px] mt-1.5 leading-relaxed" style={{ color: colors.textTertiary }}>
+            {indicator.description}
+          </div>
+        )}
+      </div>
+
+      {indicator && indicator.configSchema.fields.length > 0 && (
+        <div>
+          <div className="text-[10px] font-semibold tracking-wide mb-2" style={{ color: colors.textTertiary }}>
+            参数配置
+          </div>
+          <div className="flex flex-col gap-3">
+            {indicator.configSchema.fields.map((field) => (
+              <ConfigControl
+                key={field.key}
+                field={field}
+                value={configValues[field.key] ?? field.defaultValue}
+                onChange={onConfigChange}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function IndicatorAnalysisDialog({
@@ -275,73 +334,55 @@ export function IndicatorAnalysisDialog({
     });
   }, [netWorths.length, estimatedNav, estimatedTime]);
 
+  // 移动端：配置面板展开/收起
+  const [mobileConfigOpen, setMobileConfigOpen] = useState(false);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!max-w-[90vw] !w-[1100px] !h-[85vh] !max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden"
-        style={{ backgroundColor: colors.bg, borderRadius: 16 }}
+        className="!max-w-[100vw] md:!max-w-[90vw] !w-[100vw] md:!w-[1100px] !h-[85vh] !max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden md:rounded-2xl"
+        style={{ backgroundColor: colors.bg }}
       >
         <DialogTitle className="sr-only">指标分析</DialogTitle>
 
+        {/* 标题栏 + 移动端参数切换按钮 */}
         <div
-          className="flex items-center justify-between px-6 py-3 shrink-0"
+          className="flex items-center justify-between px-4 md:px-6 py-3 shrink-0"
           style={{ borderBottom: `1px solid ${colors.borderLight}`, backgroundColor: colors.bgCard }}
         >
           <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
             指标分析
           </span>
+          <button
+            type="button"
+            className="md:hidden text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition-colors mr-9"
+            style={{
+              backgroundColor: mobileConfigOpen ? colors.primary : colors.bgInput,
+              color: mobileConfigOpen ? '#fff' : colors.textSecondary,
+            }}
+            onClick={() => setMobileConfigOpen((v) => !v)}
+          >
+            {mobileConfigOpen ? '收起参数' : '参数'}
+          </button>
         </div>
 
-        <div className="flex flex-1 min-h-0">
-          {/* 左侧配置面板 */}
-          <div
-            className="w-[220px] shrink-0 flex flex-col"
-            style={{ borderRight: `1px solid ${colors.borderLight}`, backgroundColor: colors.bgCard }}
-          >
-            <ScrollArea className="flex-1 px-4 py-4">
-              <div className="mb-5">
-                <div className="text-[10px] font-semibold tracking-wide mb-2" style={{ color: colors.textTertiary }}>
-                  选择指标
-                </div>
-                <select
-                  className="w-full px-2.5 py-2 rounded-lg text-[12px] border cursor-pointer"
-                  style={{ backgroundColor: colors.bgInput, borderColor: colors.borderLight, color: colors.textPrimary }}
-                  value={selectedId}
-                  onChange={(e) => handleIndicatorChange(e.target.value)}
-                >
-                  {indicators.map((ind) => (
-                    <option key={ind.id} value={ind.id}>{ind.name}</option>
-                  ))}
-                </select>
-                {indicator?.description && (
-                  <div className="text-[10px] mt-1.5 leading-relaxed" style={{ color: colors.textTertiary }}>
-                    {indicator.description}
-                  </div>
-                )}
-              </div>
-
-              {indicator?.configSchema.fields.length > 0 && (
-                <div>
-                  <div className="text-[10px] font-semibold tracking-wide mb-2" style={{ color: colors.textTertiary }}>
-                    参数配置
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    {indicator.configSchema.fields.map((field) => (
-                      <ConfigControl
-                        key={field.key}
-                        field={field}
-                        value={configValues[field.key] ?? field.defaultValue}
-                        onChange={handleConfigChange}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </ScrollArea>
+        <div className="flex flex-col md:flex-row flex-1 min-h-0">
+          {/* 桌面端参数面板（固定侧栏） */}
+          <div className="hidden md:block md:w-[220px] md:shrink-0 md:border-r overflow-y-auto" style={{ borderColor: colors.borderLight, backgroundColor: colors.bgCard }}>
+            <div className="px-4 py-4">
+              <ConfigPanelContent
+                indicators={indicators}
+                indicator={indicator}
+                selectedId={selectedId}
+                onIndicatorChange={handleIndicatorChange}
+                configValues={configValues}
+                onConfigChange={handleConfigChange}
+              />
+            </div>
           </div>
 
-          {/* 右侧图表 */}
-          <div className="flex-1 p-4 min-w-0">
+          {/* 图表容器（移动端参数面板作为覆盖层浮在图表上方） */}
+          <div className="flex-1 p-3 md:p-4 min-w-0 relative">
             {chartOption ? (
               <ReactEChartsCore
                 key={chartKey}
@@ -356,6 +397,31 @@ export function IndicatorAnalysisDialog({
                 <span className="text-xs" style={{ color: colors.textTertiary }}>
                   {netWorths.length === 0 ? '暂无净值数据' : '指标计算中...'}
                 </span>
+              </div>
+            )}
+
+            {/* 移动端参数覆盖层 */}
+            {mobileConfigOpen && (
+              <div className="absolute inset-0 z-10 md:hidden overflow-y-auto rounded-lg" style={{ backgroundColor: colors.bg, border: `1px solid ${colors.borderLight}` }}>
+                <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                  <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>参数配置</span>
+                  <button
+                    type="button"
+                    className="text-xs px-2.5 py-1 rounded-lg font-medium cursor-pointer"
+                    style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+                    onClick={() => setMobileConfigOpen(false)}
+                  >
+                    关闭
+                  </button>
+                </div>
+                <ConfigPanelContent
+                  indicators={indicators}
+                  indicator={indicator}
+                  selectedId={selectedId}
+                  onIndicatorChange={handleIndicatorChange}
+                  configValues={configValues}
+                  onConfigChange={handleConfigChange}
+                />
               </div>
             )}
           </div>

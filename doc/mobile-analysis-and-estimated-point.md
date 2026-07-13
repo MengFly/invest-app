@@ -45,7 +45,7 @@
 
 | 属性 | 值 |
 |------|-----|
-| **描述** | 在 MobileDetail 组件中：<br>1. 导入 `IndicatorAnalysisDialog`<br>2. 新增 `indicatorAnalysisOpen` 状态<br>3. 在净值走势区域的曲线设置按钮旁边，添加一个指标分析按钮（与桌面端相同的折线图 SVG 图标）<br>4. 在组件底部添加 IndicatorAnalysisDialog，传入预估净值数据<br>5. 移动端弹窗样式需要适合小屏幕（缩小配置面板） |
+| **描述** | 在 MobileDetail 组件中：<br>1. 导入 `IndicatorAnalysisDialog`<br>2. 新增 `indicatorAnalysisOpen` 状态<br>3. 在净值走势区域的曲线设置按钮旁边，添加一个指标分析按钮（与桌面端相同的折线图 SVG 图标）<br>4. 在组件底部添加 IndicatorAnalysisDialog，传入预估净值数据<br>5. 移动端弹窗改为全屏，左侧配置面板在移动端改为覆盖层浮在图表上方 |
 | **涉及文件** | `src/components/MobileDetail.tsx` |
 | **验收标准** | 1. 移动端净值走势区域显示指标分析按钮<br>2. 点击按钮弹出指标分析弹窗<br>3. 弹窗在小屏幕上布局合理，可正常操作<br>4. 趋势通道图表中显示灰色预估点 |
 
@@ -61,12 +61,42 @@
 - **任务 2** 不依赖其他任务，可以与任务 1 同时修改
 - 推荐顺序：先完成任务1和任务2（同一个文件），再并行执行任务3和任务4
 
-### 关于移动端弹窗尺寸适配
+## 5. 修正记录
 
-当前 `IndicatorAnalysisDialog` 的 `DialogContent` 使用固定宽高 `!w-[1100px] !h-[85vh]`。在移动端需要调整为更小的宽度（如 `!w-[95vw]`），但保留高度限制。可以通过以下方式实现：
+### 5.1 移动端参数面板弹出后不显示
 
-- 在 DialogContent 的 className 中添加响应式 Tailwind 类：`md:!w-[1100px] !w-[95vw]`
-- 左侧配置面板在移动端可以折叠或缩小宽度
+| 属性 | 值 |
+|------|-----|
+| **现象** | 点击"参数"按钮后端状态更新（按钮文字变为"收起参数"），但配置面板未渲染，必须调整页面大小后才显示 |
+| **根因** | 最初使用 `hidden`/`block` Tailwind 类切换，后改为 React 条件渲染。但在 Radix Portal 中，flex 布局的条件渲染存在浏览器重排不触发的问题 |
+| **方案演进** | ① Tailwind 类切换 → ② React 条件渲染（flex 子元素推入布局流）→ ③ **最终：absolute 覆盖层**。覆盖层不参与 flex 布局流，不触发重排 |
+| **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
+
+### 5.2 "参数"按钮与 Dialog 关闭按钮重叠
+
+| 属性 | 值 |
+|------|-----|
+| **现象** | 移动端全屏弹窗中，标题栏右侧的"参数"按钮与 Dialog 内置的 X 关闭按钮重叠 |
+| **根因** | shadcn Dialog 的 X 关闭按钮为 `absolute right-4 top-4` 定位，与标题栏右侧的"参数"按钮位置冲突 |
+| **方案** | 在"参数"按钮上添加 `mr-9`（margin-right: 36px），将其向左推开避开关闭按钮 |
+| **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
+
+### 5.3 TypeScript 编译错误
+
+| 属性 | 值 |
+|------|-----|
+| **现象** | `indicator?.configSchema.fields.length` 和 `indicator.configSchema.fields.map` 报 `TS18048` 错误 |
+| **根因** | 可选链 `?.` 无法在条件分支中收窄 `indicator` 的类型。TS 认为 `indicator` 在代码块内仍可能为 `undefined` |
+| **方案** | 将 `indicator?.configSchema.fields.length > 0` 改为 `indicator && indicator.configSchema.fields.length > 0` |
+| **涉及文件** | `src/components/IndicatorAnalysisDialog.tsx` |
+
+### 关于移动端弹窗布局
+
+**最终实现方案**（经过多轮修正后）：
+1. **全屏弹窗**：移动端 `!w-[100vw]`，桌面端保持 1100px 圆角弹窗（`md:rounded-2xl`）
+2. **布局**：桌面端保持左右分栏；移动端配置面板改为 **absolute 覆盖层**浮在图表上方，不参与 flex 布局流，避免条件渲染导致的 flex 重排问题
+3. **操作方式**：标题栏右侧有「参数」按钮（`mr-9` 避开 X 关闭按钮），展开后覆盖层有独立「关闭」按钮。图表始终挂载不销毁
+4. **组件提取**：将配置面板内容提取为独立 `ConfigPanelContent` 组件，移动端和桌面端共用同一份 JSX
 
 ## Complements
 
@@ -95,5 +125,19 @@
 - **状态**：✅ 已完成
 - **修改文件**：
   - `src/components/MobileDetail.tsx` — 导入 IndicatorAnalysisDialog；新增 `indicatorAnalysisOpen` 状态；在曲线设置按钮旁添加指标分析按钮；在组件底部添加 IndicatorAnalysisDialog 并传入预估净值数据
+- **审查结果**：✅ 审查通过
+- **完成时间**：2026-07-13
+
+### 5. 移动端弹窗布局适配（全屏 + absolute 覆盖层方案）
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/IndicatorAnalysisDialog.tsx` — 弹窗移动端改全屏（`!w-[100vw]`）；桌面端保留圆角（`md:rounded-2xl`）；布局从左右分栏改为桌面端侧栏 + 移动端 absolute 覆盖层方案；配置面板内容提取为独立 `ConfigPanelContent` 组件以避免 JSX 重复；标题栏新增「参数」按钮（`mr-9` 避开 Dialog X 关闭按钮）；覆盖层有独立「关闭」按钮
+- **审查结果**：✅ 审查通过
+- **完成时间**：2026-07-13
+
+### 6. 修正：TypeScript 类型错误
+- **状态**：✅ 已完成
+- **修改文件**：
+  - `src/components/IndicatorAnalysisDialog.tsx` — 将 `indicator?.configSchema.fields.length > 0` 改为 `indicator && indicator.configSchema.fields.length > 0`，避免 TS 无法通过可选链收窄类型的问题
 - **审查结果**：✅ 审查通过
 - **完成时间**：2026-07-13
