@@ -10,7 +10,8 @@ import { AddFundDialog } from '@/components/AddFundDialog';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DeleteConfirmDialog } from '@/components/DeleteConfirmDialog';
 import { colors } from '@/theme';
-import { LogOut } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
+import { removeCache } from '@/services/cache';
 import { formatMoney, formatPercent } from '@/utils/format';
 import MobileDetail from './MobileDetail';
 
@@ -50,6 +51,24 @@ function MobileList() {
     await signOut();
     setLogoutConfirmOpen(false);
   }, [signOut]);
+
+  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false);
+
+  const handleClearCache = useCallback(() => {
+    setClearCacheConfirmOpen(true);
+  }, []);
+
+  const handleClearCacheConfirm = useCallback(() => {
+    // 清除所有已知缓存前缀
+    removeCache('cache:fund-info:');
+    removeCache('cache:fund-net-worth:');
+    removeCache('cache:estimated-nav:');
+    removeCache('cache:transactions');
+    removeCache('cache:transactions:');
+    removeCache('supabase:cache:');
+    setClearCacheConfirmOpen(false);
+    triggerRefresh();
+  }, [triggerRefresh]);
 
   // 返回时恢复滚动位置（等列表数据加载完成后再恢复）
   useEffect(() => {
@@ -104,15 +123,25 @@ function MobileList() {
                 <span className="text-[10px]" style={{ color: colors.textTertiary }}>...</span>
               ) : (
                 <button
-                  type="button"
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
-                  style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-                  onClick={handleLogout}
-                  title={user?.email ?? ''}
-                >
-                  <LogOut size={11} strokeWidth={1.5} />
-                  {(user?.email ?? '').split('@')[0]}
-                </button>
+                type="button"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+                onClick={handleLogout}
+                title={user?.email ?? ''}
+              >
+                <LogOut size={11} strokeWidth={1.5} />
+                {(user?.email ?? '').split('@')[0]}
+              </button>
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                style={{ backgroundColor: colors.bgInput, color: colors.textTertiary }}
+                onClick={handleClearCache}
+                title="清理缓存"
+              >
+                <Trash2 size={11} strokeWidth={1.5} />
+                清理缓存
+              </button>
               )}
               <button
                 type="button"
@@ -280,6 +309,14 @@ function MobileList() {
         message="确定要退出登录吗？"
         confirmText="确认退出"
         onConfirm={handleLogoutConfirm}
+      />
+      <ConfirmDialog
+        open={clearCacheConfirmOpen}
+        onOpenChange={setClearCacheConfirmOpen}
+        title="清理缓存"
+        message="确定要清理所有本地缓存数据吗？下次启动时会重新从服务器加载数据。"
+        confirmText="确认清理"
+        onConfirm={handleClearCacheConfirm}
       />
       {deleteFund && (
         <DeleteConfirmDialog
