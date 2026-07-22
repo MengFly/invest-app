@@ -122,26 +122,28 @@ function MobileList() {
               {authLoading ? (
                 <span className="text-[10px]" style={{ color: colors.textTertiary }}>...</span>
               ) : (
+                <>
                 <button
-                type="button"
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
-                style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
-                onClick={handleLogout}
-                title={user?.email ?? ''}
-              >
-                <LogOut size={11} strokeWidth={1.5} />
-                {(user?.email ?? '').split('@')[0]}
-              </button>
-              <button
-                type="button"
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
-                style={{ backgroundColor: colors.bgInput, color: colors.textTertiary }}
-                onClick={handleClearCache}
-                title="清理缓存"
-              >
-                <Trash2 size={11} strokeWidth={1.5} />
-                清理缓存
-              </button>
+                  type="button"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                  style={{ backgroundColor: colors.bgInput, color: colors.textSecondary }}
+                  onClick={handleLogout}
+                  title={user?.email ?? ''}
+                >
+                  <LogOut size={11} strokeWidth={1.5} />
+                  {(user?.email ?? '').split('@')[0]}
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-medium cursor-pointer"
+                  style={{ backgroundColor: colors.bgInput, color: colors.textTertiary }}
+                  onClick={handleClearCache}
+                  title="清理缓存"
+                >
+                  <Trash2 size={11} strokeWidth={1.5} />
+                  清理缓存
+                </button>
+                </>
               )}
               <button
                 type="button"
