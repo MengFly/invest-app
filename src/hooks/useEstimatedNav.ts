@@ -1,6 +1,6 @@
 /**
  * 估算净值 Hook
- * 封装天天基金实时估算净值的数据获取逻辑
+ * 从 Supabase 查询基金实时估算净值
  * 使用 localStorage 缓存避免重复请求，5 分钟轮询刷新
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -13,7 +13,7 @@ const EST_NAV_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
 
 /**
  * 获取单只基金的估算净值（详情页使用）
- * 优先读缓存，缓存过期则发起 JSONP 请求
+ * 优先读缓存，缓存过期则从 Supabase 查询
  */
 export function useEstimatedNav(code: string | undefined): {
   data: EstimatedNavData | null;
@@ -76,7 +76,7 @@ export function useEstimatedNav(code: string | undefined): {
 
 /**
  * 批量获取多只基金的估算净值（列表页使用）
- * 串行请求避免 JSONP 全局回调冲突，共享 localStorage 缓存
+ * 串行请求避免并发冲突，共享 localStorage 缓存
  */
 export function useAllEstimatedNavs(codes: string[]): Record<string, EstimatedNavData | null> {
   const [navs, setNavs] = useState<Record<string, EstimatedNavData | null>>({});

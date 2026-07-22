@@ -118,7 +118,7 @@ export interface NetWorthRecord {
   netWorthChange: number;
 }
 
-// ===== 估算净值（天天基金实时接口） =====
+// ===== 估算净值（Supabase fund_estimation 表） =====
 
 export interface EstimatedNavData {
   fundCode: string;

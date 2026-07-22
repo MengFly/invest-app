@@ -1,6 +1,6 @@
 // Supabase 云存储服务 - 管理持仓与交易记录的云端持久化
 import { getCache, removeCache } from '@/services/cache';
-import type { FundBasicInfo, FundListItem, Holding, NetWorthRecord, Transaction } from '@/types';
+import type { EstimatedNavData, FundBasicInfo, FundListItem, Holding, NetWorthRecord, Transaction } from '@/types';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 // ===== 硬编码 Supabase 配置（配合 RLS，用户数据由 auth.uid() 隔离） =====
@@ -232,6 +232,33 @@ export async function fetchFundNetWorthFromSupabase(code: string): Promise<NetWo
   // Supabase 的 order 在某些情况下可能返回降序，增加此保障避免图表顺序反转
   records.sort((a, b) => a.date.localeCompare(b.date));
   return records;
+}
+
+// ==================== fund_estimation 查询（估算净值，由后端同步） ====================
+
+/**
+ * 从 Supabase 查询基金实时估算净值
+ * 数据由后端服务定时同步到 fund_estimation 表
+ * 字段映射：funcCode → fundCode, netWorth → estimatedNav, netWorthChange → estimatedChange, created_at → estimatedTime
+ */
+export async function fetchEstimatedNavFromSupabase(code: string): Promise<EstimatedNavData | null> {
+  const client = getClient();
+  const { data, error: err } = await client
+    .from('fund_estimation')
+    .select('"funcCode", "netWorth", "netWorthChange", created_at')
+    .eq('funcCode', code)
+    .maybeSingle();
+  if (err) throw new Error(err.message);
+  if (!data) return null;
+  return {
+    fundCode: data.funcCode,
+    name: '',
+    navDate: '',
+    nav: 0,
+    estimatedNav: data.netWorth ?? 0,
+    estimatedChange: data.netWorthChange ?? 0,
+    estimatedTime: data.created_at ? new Date(data.created_at).toISOString() : '',
+  };
 }
 
 // ==================== fund_basic_info 搜索（按需搜索，无缓存） ====================
