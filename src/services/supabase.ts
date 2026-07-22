@@ -227,7 +227,11 @@ export async function fetchFundNetWorthFromSupabase(code: string): Promise<NetWo
     .order('date', { ascending: true })
     .limit(10000);
   if (err) throw new Error(err.message);
-  return (data ?? []) as NetWorthRecord[];
+  const records = (data ?? []) as NetWorthRecord[];
+  // 安全排序：确保数据始终按日期升序（最早→最新）
+  // Supabase 的 order 在某些情况下可能返回降序，增加此保障避免图表顺序反转
+  records.sort((a, b) => a.date.localeCompare(b.date));
+  return records;
 }
 
 // ==================== fund_basic_info 搜索（按需搜索，无缓存） ====================

@@ -160,7 +160,7 @@ export function NavChart({
   const option = useMemo(() => {
     if (!netWorths || netWorths.length === 0) return null;
 
-    const dates = netWorths.map(r => r.date.slice(5));
+    const dates = netWorths.map(r => r.date);
 
     // 构建嵌入额外数据的净值数据
     const navData = netWorths.map((r, i) => ({

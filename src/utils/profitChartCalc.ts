@@ -79,7 +79,7 @@ export function calcDailyProfits(
   return {
     profits,
     holdingProfits,
-    xLabels: netWorths.map((r) => r.date.slice(5)),
+    xLabels: netWorths.map((r) => r.date),
     endLabel: profits[profits.length - 1] >= 0
       ? `+${formatMoney(profits[profits.length - 1])}`
       : formatMoney(profits[profits.length - 1]),
