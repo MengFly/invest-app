@@ -224,7 +224,8 @@ export async function fetchFundNetWorthFromSupabase(code: string): Promise<NetWo
     .from('fund_net_worth')
     .select('date, netWorth, netWorthChange')
     .eq('fundCode', code)
-    .order('date', { ascending: true });
+    .order('date', { ascending: false })
+    .limit(10000);
   if (err) throw new Error(err.message);
   return (data ?? []) as NetWorthRecord[];
 }
