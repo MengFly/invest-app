@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { getOrderedHoldings } from '@/services/portfolio';
 import { getTransactions } from '@/services/transaction';
 import { fetchFundNetWorth, fetchFundBasicInfo } from '@/services/fundApi';
-import { getCached, setCached, fundNetWorthKey, fundInfoKey, CACHE_TTL } from '@/services/cache';
+import { getCache } from '@/services/cache';
 import { summarizeHolding } from '@/utils/holdingCalc';
 import type { FundBasicInfo, NetWorthRecord, HoldingSummary } from '@/types';
 
@@ -11,31 +11,19 @@ interface UseAllSummariesResult {
   loading: boolean;
 }
 
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 小时
+
 async function fetchNetWorthCached(code: string): Promise<NetWorthRecord[] | null> {
-  const key = fundNetWorthKey(code);
   try {
-    const cached = await getCached<NetWorthRecord[]>(key);
-    if (cached) return cached;
-  } catch {}
-  try {
-    const data = await fetchFundNetWorth(code);
-    await setCached(key, data, CACHE_TTL.FUND_NETWORTH);
-    return data;
+    return await getCache<NetWorthRecord[]>(`cache:fund-net-worth:${code}`, CACHE_TTL, () => fetchFundNetWorth(code));
   } catch {
     return null;
   }
 }
 
 async function fetchBasicInfoCached(code: string): Promise<FundBasicInfo | null> {
-  const key = fundInfoKey(code);
   try {
-    const cached = await getCached<FundBasicInfo>(key);
-    if (cached) return cached;
-  } catch {}
-  try {
-    const data = await fetchFundBasicInfo(code);
-    await setCached(key, data, CACHE_TTL.FUND_INFO);
-    return data;
+    return await getCache<FundBasicInfo>(`cache:fund-info:${code}`, CACHE_TTL, () => fetchFundBasicInfo(code));
   } catch {
     return null;
   }

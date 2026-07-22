@@ -1,28 +1,15 @@
 /**
  * 估算净值 Hook
  * 封装天天基金实时估算净值的数据获取逻辑
- * 使用模块级缓存避免重复请求，5 分钟轮询刷新
+ * 使用 localStorage 缓存避免重复请求，5 分钟轮询刷新
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { fetchEstimatedNav } from '@/services/fundApi';
+import { getCache } from '@/services/cache';
 import type { EstimatedNavData } from '@/types';
 
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 分钟
-
-// 模块级缓存，跨 Hook 实例共享
-const cache = new Map<string, { data: EstimatedNavData | null; ts: number }>();
-
-function getCached(code: string): EstimatedNavData | null | undefined {
-  const entry = cache.get(code);
-  if (entry && Date.now() - entry.ts < POLL_INTERVAL) {
-    return entry.data;
-  }
-  return undefined; // 表示缓存过期或不存在
-}
-
-function setCached(code: string, data: EstimatedNavData | null): void {
-  cache.set(code, { data, ts: Date.now() });
-}
+const EST_NAV_CACHE_TTL = 5 * 60 * 1000; // 5 分钟
 
 /**
  * 获取单只基金的估算净值（详情页使用）
@@ -34,11 +21,7 @@ export function useEstimatedNav(code: string | undefined): {
   error: string | null;
   refresh: () => void;
 } {
-  const [data, setData] = useState<EstimatedNavData | null>(() => {
-    if (!code) return null;
-    const cached = getCached(code);
-    return cached !== undefined ? cached : null;
-  });
+  const [data, setData] = useState<EstimatedNavData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshFlag, setRefreshFlag] = useState(0);
@@ -54,11 +37,15 @@ export function useEstimatedNav(code: string | undefined): {
     }
 
     cancelledRef.current = false;
+    setLoading(true);
 
     const doFetch = async () => {
       try {
-        const result = await fetchEstimatedNav(code);
-        setCached(code, result);
+        const result = await getCache<EstimatedNavData | null>(
+          `cache:estimated-nav:${code}`,
+          EST_NAV_CACHE_TTL,
+          () => fetchEstimatedNav(code)
+        );
         if (!cancelledRef.current) {
           setData(result);
         }
@@ -73,7 +60,6 @@ export function useEstimatedNav(code: string | undefined): {
       }
     };
 
-    setLoading(true);
     doFetch();
 
     // 5 分钟轮询
@@ -90,7 +76,7 @@ export function useEstimatedNav(code: string | undefined): {
 
 /**
  * 批量获取多只基金的估算净值（列表页使用）
- * 串行请求避免 JSONP 全局回调冲突，共享模块级缓存
+ * 串行请求避免 JSONP 全局回调冲突，共享 localStorage 缓存
  */
 export function useAllEstimatedNavs(codes: string[]): Record<string, EstimatedNavData | null> {
   const [navs, setNavs] = useState<Record<string, EstimatedNavData | null>>({});
@@ -99,21 +85,18 @@ export function useAllEstimatedNavs(codes: string[]): Record<string, EstimatedNa
   const fetchAll = useCallback(async () => {
     const result: Record<string, EstimatedNavData | null> = {};
     for (const code of codes) {
-      const cached = getCached(code);
-      if (cached !== undefined) {
-        result[code] = cached;
-      } else {
-        try {
-          const data = await fetchEstimatedNav(code);
-          setCached(code, data);
-          result[code] = data;
-        } catch {
-          // 单个失败不影响其他
-        }
+      try {
+        const data = await getCache<EstimatedNavData | null>(
+          `cache:estimated-nav:${code}`,
+          EST_NAV_CACHE_TTL,
+          () => fetchEstimatedNav(code)
+        );
+        result[code] = data;
+      } catch {
+        // 单个失败不影响其他
       }
     }
     setNavs((prev) => {
-      // 合并新旧数据，保留未变化的缓存值
       const merged = { ...prev };
       for (const code of codes) {
         if (result[code] !== undefined) {
