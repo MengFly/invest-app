@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Search, Plus, Check } from 'lucide-react'
 import {
   Dialog,
@@ -8,10 +8,12 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { colors } from '@/theme'
-import { useFundList } from '@/hooks/useFund'
+import { searchFundsFromSupabase } from '@/services/supabase'
 import { addHolding, getHoldings } from '@/services/portfolio'
+import type { FundListItem } from '@/types'
 
 const RECENT_SEARCH_KEY = 'recent-search-codes'
+const DEBOUNCE_MS = 300
 
 interface AddFundDialogProps {
   open: boolean
@@ -29,13 +31,17 @@ export function AddFundDialog({
   const [recentCodes, setRecentCodes] = useState<string[]>([])
   const [heldCodes, setHeldCodes] = useState<Set<string>>(new Set())
   const [addingCode, setAddingCode] = useState<string | null>(null)
-
-  const { data: fundList, loading, error, refresh } = useFundList()
+  const [searchResults, setSearchResults] = useState<FundListItem[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!open) return
     setQuery('')
     setAddingCode(null)
+    setSearchResults([])
+    setSearchError(null)
     ;(async () => {
       try {
         const raw = localStorage.getItem(RECENT_SEARCH_KEY)
@@ -52,6 +58,37 @@ export function AddFundDialog({
       } catch {}
     })()
   }, [open])
+
+  // 防抖搜索：用户输入 300ms 后发起 Supabase 搜索
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+    if (!query.trim()) {
+      setSearchResults([])
+      setSearchError(null)
+      return
+    }
+    setSearchLoading(true)
+    setSearchError(null)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchFundsFromSupabase(query.trim())
+        setSearchResults(results)
+      } catch (e) {
+        setSearchError(e instanceof Error ? e.message : '搜索失败')
+        setSearchResults([])
+      } finally {
+        setSearchLoading(false)
+      }
+    }, DEBOUNCE_MS)
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [query])
 
   const addRecent = async (code: string) => {
     try {
@@ -79,11 +116,6 @@ export function AddFundDialog({
       setAddingCode(null)
     }
   }
-
-  const source = fundList ?? []
-  const filtered = query
-    ? source.filter((f) => f.name.includes(query) || f.code.includes(query))
-    : source
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,7 +151,7 @@ export function AddFundDialog({
           </div>
         </div>
 
-        {!query && recentCodes.length > 0 && (
+        {!query.trim() && recentCodes.length > 0 && (
           <div className="mb-5">
             <div
               className="text-sm mb-2"
@@ -148,110 +180,110 @@ export function AddFundDialog({
         )}
 
         <div className="flex-1 min-h-0">
-          <div
-            className="text-sm mb-2"
-            style={{ color: colors.textTertiary }}
-          >
-            基金列表
-          </div>
+          {query.trim() && (
+            <div
+              className="text-sm mb-2"
+              style={{ color: colors.textTertiary }}
+            >
+              搜索结果
+            </div>
+          )}
 
-          {loading && !fundList && (
+          {searchLoading && (
             <div
               className="flex flex-col items-center gap-3 py-8"
               style={{ color: colors.textSecondary }}
             >
-              <div className="text-sm">加载中...</div>
+              <div className="text-sm">搜索中...</div>
             </div>
           )}
 
-          {error && !fundList && (
+          {searchError && (
             <div className="flex flex-col items-center gap-3 py-8">
               <div className="text-sm" style={{ color: colors.textSecondary }}>
-                {error}
+                {searchError}
               </div>
-              <Button variant="outline" size="sm" onClick={refresh}>
-                重试
-              </Button>
             </div>
           )}
 
-          {fundList && (
+          {!searchLoading && !searchError && query.trim() && (
             <ScrollArea className="h-[280px]">
-              {filtered.map((fund, i) => {
-                const isHeld = heldCodes.has(fund.code)
-                const isAdding = addingCode === fund.code
-                return (
-                  <div
-                    key={fund.code}
-                    className="flex items-center py-3 gap-3"
-                    style={
-                      i < filtered.length - 1
-                        ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
-                        : undefined
-                    }
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-sm font-medium truncate"
-                          style={{ color: colors.textPrimary }}
-                        >
-                          {fund.name}
-                        </span>
-                        {isHeld && (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-sm"
-                            style={{
-                              color: colors.textTertiary,
-                              backgroundColor: colors.bgInput,
-                            }}
-                          >
-                            已添加
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        className="text-sm mt-0.5"
-                        style={{
-                          color: colors.textTertiary,
-                          fontFamily: 'ui-monospace, monospace',
-                        }}
-                      >
-                        {fund.code}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isHeld || isAdding}
-                      className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity"
-                      style={{
-                        backgroundColor: isHeld
-                          ? colors.bgInput
-                          : colors.secondary,
-                      }}
-                      onClick={() => handleAdd(fund.code, fund.name)}
-                    >
-                      {isAdding ? (
-                        <div
-                          className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
-                          style={{ borderColor: '#FFFFFF', borderTopColor: 'transparent' }}
-                        />
-                      ) : isHeld ? (
-                        <Check size={16} color={colors.textTertiary} />
-                      ) : (
-                        <Plus size={16} color="#FFFFFF" />
-                      )}
-                    </button>
-                  </div>
-                )
-              })}
-              {filtered.length === 0 && (
+              {searchResults.length === 0 ? (
                 <div
                   className="text-center py-6 text-sm"
                   style={{ color: colors.textTertiary }}
                 >
                   未找到匹配的基金
                 </div>
+              ) : (
+                searchResults.map((fund, i) => {
+                  const isHeld = heldCodes.has(fund.code)
+                  const isAdding = addingCode === fund.code
+                  return (
+                    <div
+                      key={fund.code}
+                      className="flex items-center py-3 gap-3"
+                      style={
+                        i < searchResults.length - 1
+                          ? { borderBottomWidth: 1, borderBottomColor: colors.borderLight }
+                          : undefined
+                      }
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-sm font-medium truncate"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            {fund.name}
+                          </span>
+                          {isHeld && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded-sm"
+                              style={{
+                                color: colors.textTertiary,
+                                backgroundColor: colors.bgInput,
+                              }}
+                            >
+                              已添加
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-sm mt-0.5"
+                          style={{
+                            color: colors.textTertiary,
+                            fontFamily: 'ui-monospace, monospace',
+                          }}
+                        >
+                          {fund.code}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={isHeld || isAdding}
+                        className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity"
+                        style={{
+                          backgroundColor: isHeld
+                            ? colors.bgInput
+                            : colors.secondary,
+                        }}
+                        onClick={() => handleAdd(fund.code, fund.name)}
+                      >
+                        {isAdding ? (
+                          <div
+                            className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
+                            style={{ borderColor: '#FFFFFF', borderTopColor: 'transparent' }}
+                          />
+                        ) : isHeld ? (
+                          <Check size={16} color={colors.textTertiary} />
+                        ) : (
+                          <Plus size={16} color="#FFFFFF" />
+                        )}
+                      </button>
+                    </div>
+                  )
+                })
               )}
             </ScrollArea>
           )}

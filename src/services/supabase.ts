@@ -1,6 +1,6 @@
 // Supabase 云存储服务 - 管理持仓与交易记录的云端持久化
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Holding, Transaction } from '@/types';
+import type { FundBasicInfo, FundListItem, Holding, NetWorthRecord, Transaction } from '@/types';
 
 // ===== 硬编码 Supabase 配置（配合 RLS，用户数据由 auth.uid() 隔离） =====
 const SUPABASE_URL = 'https://narvehoftoihiqukgrsf.supabase.co';
@@ -239,4 +239,62 @@ export async function clearCloudTransactionsByFund(fundCode: string): Promise<vo
   const { error: err } = await client.from('fund_transactions').delete().eq('fundCode', fundCode);
   if (err) throw new Error(err.message);
   clearTransactionCache(fundCode);
+}
+
+// ==================== fund_basic_info 查询（数据由后端同步，无缓存） ====================
+
+/**
+ * 从 Supabase 查询基金基本信息
+ * 数据由后端服务定时同步，前端不负责写入
+ * 注意：不含缓存逻辑，缓存由 hooks 层统一管理
+ */
+export async function fetchFundBasicInfoFromSupabase(code: string): Promise<FundBasicInfo | null> {
+  const client = getClient();
+  const { data, error: err } = await client
+    .from('fund_basic_info')
+    .select('*')
+    .eq('fundCode', code)
+    .maybeSingle();
+  if (err) throw new Error(err.message);
+  if (!data) return null;
+  return data as FundBasicInfo;
+}
+
+// ==================== fund_net_worth 查询（数据由后端同步，无缓存） ====================
+
+/**
+ * 从 Supabase 查询基金净值数据
+ * 数据由后端服务定时同步，前端不负责写入
+ * 注意：不含缓存逻辑，缓存由 hooks 层统一管理
+ */
+export async function fetchFundNetWorthFromSupabase(code: string): Promise<NetWorthRecord[]> {
+  const client = getClient();
+  const { data, error: err } = await client
+    .from('fund_net_worth')
+    .select('date, netWorth, netWorthChange')
+    .eq('fundCode', code)
+    .order('date', { ascending: true });
+  if (err) throw new Error(err.message);
+  return (data ?? []) as NetWorthRecord[];
+}
+
+// ==================== fund_basic_info 搜索（按需搜索，无缓存） ====================
+
+/**
+ * 从 Supabase 搜索基金（按 fundCode / fundName 模糊匹配）
+ * 仅在用户输入时调用，不缓存
+ */
+export async function searchFundsFromSupabase(query: string): Promise<FundListItem[]> {
+  const client = getClient();
+  const pattern = `%${query}%`;
+  const { data, error: err } = await client
+    .from('fund_basic_info')
+    .select('fundCode, fundName')
+    .or(`fundCode.ilike.${pattern},fundName.ilike.${pattern}`)
+    .limit(20);
+  if (err) throw new Error(err.message);
+  return (data ?? []).map((r: any) => ({
+    code: r.fundCode,
+    name: r.fundName,
+  }));
 }

@@ -2,14 +2,12 @@
 
 // 缓存键名常量
 export const CACHE_KEYS = {
-  FUND_LIST: 'cache:fund-list',
   FUND_INFO_PREFIX: 'cache:fund-info:',   // 拼接 code 使用
   FUND_NETWORTH_PREFIX: 'cache:fund-net-worth:', // 拼接 code 使用
 } as const;
 
 // 缓存 TTL (毫秒)
 export const CACHE_TTL = {
-  FUND_LIST: 12 * 60 * 60 * 1000,   // 半天
   FUND_INFO: 12 * 60 * 60 * 1000,   // 半天
   FUND_NETWORTH: 12 * 60 * 60 * 1000, // 半天
 } as const;
