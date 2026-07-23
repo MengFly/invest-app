@@ -19,7 +19,7 @@ import { findNavByDate } from '@/utils/navUtils';
 import { resolveWithNetWorths } from '@/utils/pendingNavResolver';
 import type { DailyProfitResult } from '@/utils/profitChartCalc';
 import { calcDailyProfits } from '@/utils/profitChartCalc';
-import { isPendingTx } from '@/utils/transactionUtils';
+import { isPendingTx, getLastTxDays, getNavChangeSince } from '@/utils/transactionUtils';
 import { Info } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -159,6 +159,22 @@ export function RightPanel({ code }: RightPanelProps) {
     [filteredNetWorths, detailTransactions]
   );
 
+  const lastBuyInfo = useMemo(() => {
+    if (!transactions) return null;
+    const txDays = getLastTxDays('buy', transactions);
+    if (!txDays) return null;
+    const navChange = getNavChangeSince(txDays.date, netWorths ?? [], estimatedNavData);
+    return { days: txDays.days, txDate: txDays.date, change: navChange?.change ?? 0 };
+  }, [transactions, netWorths, estimatedNavData]);
+
+  const lastSellInfo = useMemo(() => {
+    if (!transactions) return null;
+    const txDays = getLastTxDays('sell', transactions);
+    if (!txDays) return null;
+    const navChange = getNavChangeSince(txDays.date, netWorths ?? [], estimatedNavData);
+    return { days: txDays.days, txDate: txDays.date, change: navChange?.change ?? 0 };
+  }, [transactions, netWorths, estimatedNavData]);
+
   const ranges: { key: RangeKey; label: string }[] = [
     { key: '6m', label: '近6月' },
     { key: '1y', label: '近1年' },
@@ -255,6 +271,24 @@ export function RightPanel({ code }: RightPanelProps) {
                   value={`¥${summary.totalManagementFee.toFixed(2)}`}
                   valueColor={colors.loss}
                   tooltip={`管理费 = 持有金额 × 年费率 ÷ 365 × 持有天数`}
+                />
+              )}
+              {lastBuyInfo && (
+                <MiniMetric
+                  label="上次买入"
+                  value={`${lastBuyInfo.change >= 0 ? '+' : ''}${(lastBuyInfo.change * 100).toFixed(2)}%`}
+                  valueColor={lastBuyInfo.change >= 0 ? colors.profit : colors.loss}
+                  badge={lastBuyInfo.days === 0 ? '今日' : `${lastBuyInfo.days}天前`}
+                  tooltip={`上次买入日期: ${lastBuyInfo.txDate}`}
+                />
+              )}
+              {lastSellInfo && (
+                <MiniMetric
+                  label="上次卖出"
+                  value={`${lastSellInfo.change >= 0 ? '+' : ''}${(lastSellInfo.change * 100).toFixed(2)}%`}
+                  valueColor={lastSellInfo.change >= 0 ? colors.profit : colors.loss}
+                  badge={lastSellInfo.days === 0 ? '今日' : `${lastSellInfo.days}天前`}
+                  tooltip={`上次卖出日期: ${lastSellInfo.txDate}`}
                 />
               )}
             </div>
